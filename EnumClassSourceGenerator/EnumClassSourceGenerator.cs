@@ -25,7 +25,7 @@ namespace EnumClassSourceGenerator
 #if DEBUG && false
             System.Diagnostics.Debugger.Launch();
 #endif
-            context.RegisterPostInitializationOutput((context) =>
+            context.RegisterSourceOutput(context.CompilationProvider, (context, _) =>
             {
                 context.AddSource("EnumClassAttribute.g.cs", SourceText.From(Templates.EnumClassAttribute, Encoding.UTF8));
             });
@@ -44,7 +44,7 @@ namespace EnumClassSourceGenerator
                     }
 
                     if (props.Status is not (EnumClass.Definition.StatusCode.Ok
-                        or EnumClass.Definition.StatusCode.InvalidValues)) // 
+                        or EnumClass.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
                     {
                         return;
                     }

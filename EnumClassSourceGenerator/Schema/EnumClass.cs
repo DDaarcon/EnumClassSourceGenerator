@@ -16,7 +16,6 @@ internal static class EnumClass
         string? DeclarationName = null,
         string? NamespaceName = null,
         string? Modifier = null,
-        bool ShouldGeneareJsonConverter = true,
         Definition.Configuration Config = new(),
         EnumValue.CollectionResult? EnumValues = null)
     {
@@ -33,6 +32,8 @@ internal static class EnumClass
         {
             public bool GenerateJsonConverter { get; set; }
             public bool UseDictionaryForDeserialization { get; set; }
+            public bool RequireIndexAssignmentInInitializer { get; set; }
+            public bool UseDictionaryForIndexMatching { get; set; }
         }
     }
 
@@ -129,29 +130,46 @@ internal static class EnumClass
     {
         bool generateJsonConverter = true;
         bool useDictionaryForDeserialization = false;
-
+        bool requireIndexAssignmentInInitializer = true;
+        bool useDictionaryForIndexMatching = false;
 
         foreach (var arg in attribute.ArgumentList?.Arguments ?? [])
         {
-            if (arg.NameEquals?.Name.Identifier.Text.Equals(nameof(Definition.Configuration.GenerateJsonConverter)) ?? false)
-            {
-                var value = semanticModel.GetConstantValue(arg.Expression);
-                if (value.HasValue)
-                    generateJsonConverter = ((bool?)value.Value).GetValueOrDefault();
-            }
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.GenerateJsonConverter), arg, semanticModel, token, out var generateJsonConverterValue))
+                generateJsonConverter = generateJsonConverterValue;
 
-            if (arg.NameEquals?.Name.Identifier.Text.Equals(nameof(Definition.Configuration.UseDictionaryForDeserialization)) ?? false)
-            {
-                var value = semanticModel.GetConstantValue(arg.Expression);
-                if (value.HasValue)
-                    useDictionaryForDeserialization = ((bool?)value.Value).GetValueOrDefault();
-            }
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForDeserialization), arg, semanticModel, token, out var useDictionaryForDeserializationValue))
+                useDictionaryForDeserialization = useDictionaryForDeserializationValue;
+
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.RequireIndexAssignmentInInitializer), arg, semanticModel, token, out var requireIndexAssignmentInInitializerValue))
+                requireIndexAssignmentInInitializer = requireIndexAssignmentInInitializerValue;
+
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForIndexMatching), arg, semanticModel, token, out var useDictionaryForIndexMatchingValue))
+                useDictionaryForIndexMatching = useDictionaryForIndexMatchingValue;
         }
 
         return new Definition.Configuration
         {
             GenerateJsonConverter = generateJsonConverter,
-            UseDictionaryForDeserialization = useDictionaryForDeserialization
+            UseDictionaryForDeserialization = useDictionaryForDeserialization,
+            RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer,
+            UseDictionaryForIndexMatching = useDictionaryForIndexMatching
         };
+
+
+        static bool TryGetBooleanProperty(string propertyName, AttributeArgumentSyntax arg, SemanticModel semanticModel, CancellationToken token, out bool result)
+        {
+            result = false;
+
+            if (!(arg.NameEquals?.Name.Identifier.Text.Equals(propertyName) ?? false))
+                return false;
+
+            var value = semanticModel.GetConstantValue(arg.Expression, token);
+            if (!value.HasValue)
+                return false;
+
+            result = ((bool?)value.Value).GetValueOrDefault();
+            return true;
+        }
     }
 }
