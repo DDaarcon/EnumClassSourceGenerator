@@ -97,18 +97,21 @@ namespace EnumClassSourceGenerator
 
 
                     {{(hasAnyCustomTypesForEnumValues ? $$"""
-                        public static bool TryGetOfType<TValue>({{props.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen] out TValue? typeMatchingValue)
+                        public static bool TryGetOfType<TValue>({{props.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
+                            where TValue : {{props.DeclarationName}}
                         {
                             var checkedType = typeof(TValue);
+
                             {{String.Join(_nl,
                                 enumValuesPerCustomTypes.Select(enumValuesPerType => $$"""
+
                                 if (checkedType == typeof({{enumValuesPerType.Key}})
                                     && ({{String.Join("\r\n|| ",
                                         enumValuesPerType.Select(enumValue => $$"""
-                                        AreEqual(value, {{enumValue.Name}})
-                                        """))}}))
+                                            AreEqual(value, {{enumValue.Name}})
+                                            """))}}))
                                 {
-                                    typeMatchingValue = value;
+                                    typeMatchingValue = (TValue)(object)value;
                                     return true;
                                 }
                                 """))}}
