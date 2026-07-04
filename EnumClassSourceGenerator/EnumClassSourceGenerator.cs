@@ -25,16 +25,19 @@ namespace EnumClassSourceGenerator
 #if DEBUG && false
             System.Diagnostics.Debugger.Launch();
 #endif
-            context.RegisterSourceOutput(context.CompilationProvider, (context, _) =>
+            context.RegisterSourceOutput(context.CompilationProvider, static (context, compilation) =>
             {
-                context.AddSource("EnumClassAttribute.g.cs", SourceText.From(Templates.EnumClassAttribute, Encoding.UTF8));
+                if (compilation.GetTypeByMetadataName("GenEnumClass.BaseEnumClassAttribute") is null)
+                {
+                    context.AddSource("EnumClassAttribute.g.cs", SourceText.From(Templates.EnumClassAttribute, Encoding.UTF8));
+                }
             });
 
             var incrementalEnumDeclarationProps = context.SyntaxProvider.CreateSyntaxProvider(
                 predicate: CheckIfApplicable,
                 transform: ConstructModels);
 
-            context.RegisterSourceOutput(incrementalEnumDeclarationProps, (context, props) =>
+            context.RegisterSourceOutput(incrementalEnumDeclarationProps, static (context, props) =>
             {
                 try
                 {

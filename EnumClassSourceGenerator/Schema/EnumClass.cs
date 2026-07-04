@@ -33,7 +33,6 @@ internal static class EnumClass
             public bool GenerateJsonConverter { get; set; }
             public bool UseDictionaryForDeserialization { get; set; }
             public bool RequireIndexAssignmentInInitializer { get; set; }
-            public bool UseDictionaryForIndexMatching { get; set; }
         }
     }
 
@@ -131,7 +130,6 @@ internal static class EnumClass
         bool generateJsonConverter = true;
         bool useDictionaryForDeserialization = false;
         bool requireIndexAssignmentInInitializer = true;
-        bool useDictionaryForIndexMatching = false;
 
         foreach (var arg in attribute.ArgumentList?.Arguments ?? [])
         {
@@ -143,17 +141,13 @@ internal static class EnumClass
 
             if (TryGetBooleanProperty(nameof(Definition.Configuration.RequireIndexAssignmentInInitializer), arg, semanticModel, token, out var requireIndexAssignmentInInitializerValue))
                 requireIndexAssignmentInInitializer = requireIndexAssignmentInInitializerValue;
-
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForIndexMatching), arg, semanticModel, token, out var useDictionaryForIndexMatchingValue))
-                useDictionaryForIndexMatching = useDictionaryForIndexMatchingValue;
         }
 
         return new Definition.Configuration
         {
             GenerateJsonConverter = generateJsonConverter,
             UseDictionaryForDeserialization = useDictionaryForDeserialization,
-            RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer,
-            UseDictionaryForIndexMatching = useDictionaryForIndexMatching
+            RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer
         };
 
 

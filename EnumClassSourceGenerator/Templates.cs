@@ -44,25 +44,25 @@ namespace EnumClassSourceGenerator
                     /// Flag controlling presence of `require` keyword for `EnumIndex` property.
                     /// </summary>
                     public bool RequireIndexAssignmentInInitializer { get; set; } = true;
-
-                    /// <summary>
-                    /// Flag changing if-based matching into one based on a cached dictionary.
-                    /// </summary>
-                    public bool UseDictionaryForIndexMatching { get; set; } = false;
                 }
             }
             """;
 
 
+
         public static string BuildEnumClassDeclaration(
             EnumClass.Definition props)
         {
-            var enumValues = props.EnumValues!.Value.Definitions.Where(x => x.IsValid).ToArray();
+            var enumValues = props.EnumValues!.Value.Definitions.Where(x => x.IsValid).Select((x, index) => new
+            {
+                DefaultIndex = index,
+                Def = x
+            }).ToArray();
 
-            bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.FullyQualifiedCustomType is not null);
-            var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.FullyQualifiedCustomType!).Where(x => x.Key is not null);
+            bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.Def.FullyQualifiedCustomType is not null);
+            var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.Def.FullyQualifiedCustomType!).Where(x => x.Key is not null);
 
-            bool isNumbered = props.OurAttributeType is EnumClass.OurAttributeType.NumberedEnumClass;
+            bool isNumberedByUser = props.OurAttributeType is EnumClass.OurAttributeType.NumberedEnumClass;
 
             var valuesCount = enumValues.Length;
 
@@ -71,11 +71,34 @@ namespace EnumClassSourceGenerator
             namespace {{props.NamespaceName}}
             {
                 {{(props.Config.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({props.DeclarationName}JsonConverter))]" : "")}}
-                {{props.Modifier}} partial class {{props.DeclarationName}}
+                {{props.Modifier}} partial class {{props.DeclarationName}} : System.IEquatable<{{props.DeclarationName}}>
                 {
-                    public static IReadOnlyCollection<{{props.DeclarationName}}> AllValues => _allValues ?? [];
+                    static {{props.DeclarationName}}()
+                    {
+                        {{(!isNumberedByUser
+                            ? string.Join(_newLine, enumValues.Select(enumValue => $"{enumValue.Def.Name}.EnumIndex = {enumValue.DefaultIndex};"))
+                            : "")}}
+
+                        {{string.Join(_newLine, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.Name});"))}}
+                        
+                        _allValues = [
+                            {{string.Join(_commaNewLine, enumValues.Select(enumValue => enumValue.Def.Name))}}
+                        ];
             
-                    {{(!isNumbered ? """
+            
+                        {{(props.Config.UseDictionaryForDeserialization
+                            ? $"_valuesBySerializedName = _allValues.ToFrozenDictionary(x => x._serializedName);"
+                            : "")}}
+
+                        {{(isNumberedByUser
+                            ? "_usedIndexes = null;"
+                            : "")}}
+                    }
+
+
+                    public static System.Collections.Generic.IReadOnlyList<{{props.DeclarationName}}> AllValues => _allValues;
+            
+                    {{(!isNumberedByUser ? """
                         public int EnumIndex { get; private set; }
                         """
                         : props.Config.RequireIndexAssignmentInInitializer ? """
@@ -103,14 +126,14 @@ namespace EnumClassSourceGenerator
                             }
                             """)}}
             
-                    public string Serialize() => _SerializedName;
+                    public string Serialize() => _serializedName;
                     public static string Serialize({{props.DeclarationName}} value) => value.Serialize();
 
                     {{(!props.Config.UseDictionaryForDeserialization
                         ? $$"""
                         public static {{props.DeclarationName}}? Deserialize(string? serializedValue)
                         {
-                            {{String.Join(_nl, enumValues.Select(enumValue => $"if (serializedValue == {enumValue.Name}._SerializedName) return {enumValue.Name};"))}}
+                            {{String.Join(_newLine, enumValues.Select(enumValue => $"if (serializedValue == {enumValue.Def.Name}._serializedName) return {enumValue.Def.Name};"))}}
                             return null;
                         }
                         """
@@ -125,28 +148,40 @@ namespace EnumClassSourceGenerator
                         }
                         """)}}
 
+                    public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                    {
+                        result = Deserialize(serializedValue);
+                        return result is not null;
+                    }
+
+                    public static bool ContainsSerializedValue(string? serializedValue)
+                        => Deserialize(serializedValue) is not null;
+
 
                     public static {{props.DeclarationName}}? GetByEnumIndex(int index)
                     {
-                        {{(!isNumbered
+                        {{(!isNumberedByUser
                             ? $$"""
                             return index switch
                             {
-                                {{String.Join(_nl, enumValues.Select((enumValue, index) => $"{index} => {enumValue.Name},"))}}
+                                {{String.Join(_newLine, enumValues.Select(enumValue => $"{enumValue.DefaultIndex} => {enumValue.Def.Name},"))}}
                                 _ => null
                             };
                             """
-                            : props.Config.UseDictionaryForIndexMatching
-                                ? $$"""
-                                return (_valuesByIndex?.TryGetValue(index, out {{props.DeclarationName}} value) ?? false)
-                                    ? value
-                                    : null;
-                                """
-                                : $$"""
-                                {{String.Join(_nl, enumValues.Select(enumValue => $"if (index == {enumValue.Name}.EnumIndex) return {enumValue.Name};"))}}
+                            : $$"""
+                                {{String.Join(_newLine, enumValues.Select(enumValue => $"if (index == {enumValue.Def.Name}.EnumIndex) return {enumValue.Def.Name};"))}}
                                 return null;
                                 """)}}
                     }
+            
+                    public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                    {
+                        result = GetByEnumIndex(index);
+                        return result is not null;
+                    }
+
+                    public static bool ContainsEnumIndex(int index)
+                        => GetByEnumIndex(index) is not null;
 
 
                     {{(hasAnyCustomTypesForEnumValues ? $$"""
@@ -155,13 +190,13 @@ namespace EnumClassSourceGenerator
                         {
                             var checkedType = typeof(TValue);
 
-                            {{String.Join(_nl,
+                            {{String.Join(_newLine,
                                 enumValuesPerCustomTypes.Select(enumValuesPerType => $$"""
 
                                 if (checkedType == typeof({{enumValuesPerType.Key}})
                                     && ({{String.Join("\r\n|| ",
                                         enumValuesPerType.Select(enumValue => $$"""
-                                            AreEqual(value, {{enumValue.Name}})
+                                            AreEqual(value, {{enumValue.Def.Name}})
                                             """))}}))
                                 {
                                     typeMatchingValue = (TValue)(object)value;
@@ -177,156 +212,87 @@ namespace EnumClassSourceGenerator
 
 
                     public void Switch(
-                        {{String.Join(",\r\n", enumValues.Select(x => $"System.Action? on{x.Name} = null"))}})
+                        {{String.Join(_commaNewLine, enumValues.Select(x => $"System.Action? on{x.Def.Name} = null"))}})
                     {
-                        {{String.Join("\r\n",
+                        {{String.Join(_newLine,
                             enumValues.Select(x => $$"""
-                            if (AreEqual(this, {{x.Name}}))
+                            if (AreEqual(this, {{x.Def.Name}}))
                             {
-                                on{{x.Name}}?.Invoke();
+                                on{{x.Def.Name}}?.Invoke();
                                 return;
                             }
                             """))}}
                     }
 
                     public TResult? Switch<TResult>(
-                        {{String.Join(",\r\n", enumValues.Select(x => $"System.Func<TResult>? on{x.Name} = null"))}})
+                        {{String.Join(_commaNewLine, enumValues.Select(x => $"System.Func<TResult>? on{x.Def.Name} = null"))}})
                         where TResult : class
                     {
-                        {{String.Join("\r\n",
+                        {{String.Join(_newLine,
                             enumValues.Select(x => $$"""
-                            if (AreEqual(this, {{x.Name}}))
+                            if (AreEqual(this, {{x.Def.Name}}))
                             {
-                                return on{{x.Name}}?.Invoke();
+                                return on{{x.Def.Name}}?.Invoke();
                             }
                             """))}}
                         return null;
                     }
 
-
-            
-                    private {{props.DeclarationName}}() 
-                    {
-                        using (var lockScope = _InitializationLock.EnterScope())
-                        {
-                            _allValues ??= new({{valuesCount}});
-
-                            {{(!isNumbered
-                                ? "EnumIndex = _enumIndexCounter++;"
-                                : "")}}
-            
-                            _allValues.Add(this);
-
-                            {{(props.Config.UseDictionaryForDeserialization
-                                ? $$"""
-                                _valuesBySerializedName ??= new({{valuesCount}});
-                                _valuesBySerializedName.Value[GetSerializedName({{props.DeclarationName}})] = this;
-                                """
-                                : "")}}
-                            {{(props.Config.UseDictionaryForIndexMatching
-                                ? $$"""
-                                _valuesByIndex ??= new({{valuesCount}});
-                                """
-                                : "")}}
-                        }
-                    }
             
             
-                    private static HashSet<{{props.DeclarationName}}>? _allValues;
+                    private static System.Collections.Immutable.ImmutableArray<{{props.DeclarationName}}> _allValues;
                     {{(props.Config.UseDictionaryForDeserialization
-                        ? $"private static Dictionary<string, {props.DeclarationName}>? _valuesBySerializedName;"
+                        ? $"private static System.Collections.Frozen.FrozenDictionary<string, {props.DeclarationName}>? _valuesBySerializedName;"
                         : "")}}
-                    {{(props.Config.UseDictionaryForIndexMatching
-                        ? $"private static Dictionary<int, {props.DeclarationName}>? _valuesByIndex;"
-                        : "")}}
-                    {{(!isNumbered
-                        ? "private static int _enumIndexCounter = 0;"
-                        : "")}}
-                    private static System.Threading.Lock _InitializationLock => LazyInitializer.EnsureInitialized(ref _initializationLockBackingField);
-                    private static System.Threading.Lock? _initializationLockBackingField;
-
-                    private string _SerializedName => _serializedNameBackingField ??= GetSerializedName(this);
-                    private string? _serializedNameBackingField = null;
-            
-                    private string GetSerializedName({{props.DeclarationName}} value)
-                    {
-                        {{String.Join(_nl, enumValues.Select(enumValue => $"if (value == {enumValue.Name}) return nameof({enumValue.Name});"))}}
-                        throw new Exception("Attempted to serialize invalid value of {{props.DeclarationName}}");
-                    }
-
+                    private string _serializedName = null!;
 
 
                             
-                    private static void EnsureEnumIndexIsFree({{props.DeclarationName}} value, int index)
-                    {
-                        using var lockScope = _InitializationLock.EnterScope();
 
-                        var conflictingValue = _allValues!.FirstOrDefault(x => x.EnumIndex == index);
+                    {{(isNumberedByUser ? $$"""
+                        private static System.Collections.Generic.List<int>? _usedIndexes;
 
-                        if (conflictingValue is not null
-                            && !AreEqual(value, conflictingValue))
+                        private static void EnsureEnumIndexIsFree({{props.DeclarationName}} value, int index)
                         {
-                            throw new System.ArgumentException($"EnumIndex of {index} can not be used more than once.");
+                            if (_usedIndexes is null)
+                            {
+                                _usedIndexes = [index];
+                                return;
+                            }
+
+                            if (_usedIndexes.Contains(index))
+                            {
+                                throw new System.ArgumentException($"EnumIndex of {index} can not be used more than once.");
+                            }
+
+                            _usedIndexes.Add(index);
                         }
-                    }
+                        """ : "")}}
 
-
+                            
+                    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
                     private static bool AreEqual({{props.DeclarationName}} one, {{props.DeclarationName}} two)
                     {
                         return object.ReferenceEquals(one, two);
                     }
                             
+                    public bool Equals({{props.DeclarationName}}? other)
+                    {
+                        if (other is null)
+                            return false;
+
+                        return AreEqual(this, other);
+                    }
+                            
                     public override bool Equals(object? obj)
                     {
-                        return ReferenceEquals(this, obj);
+                        return Equals(obj as {{props.DeclarationName}});
                     }
                     public override int GetHashCode()
                     {
                         return EnumIndex.GetHashCode();
                     }
 
-
-
-                    public static IdMapper GetIdMapper()
-                        {{(props.Config.UseDictionaryForIndexMatching
-                            ? "=> new IdMapper(_valuesByIndex);"
-                            : "=> new IdMapper(AllValues.ToDictionary(x => x.EnumIndex));")}}
-
-                    public class IdMapper(Dictionary<int, {{props.DeclarationName}}> mapping)
-                    {
-                        private readonly Dictionary<int, {{props.DeclarationName}}> _mapping = mapping;
-
-                        public {{props.DeclarationName}}? Get(int index)
-                            => _mapping.TryGetValue(index, out var res)
-                                ? res : null;
-
-                        public bool TryGet(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
-                            => _mapping.TryGetValue(index, out result);
-
-                        public bool Contains(int index)
-                            => _mapping.ContainsKey(index);
-                    }
-
-
-                    public static SerializedMapper GetSerializedMapper()
-                        {{(props.Config.UseDictionaryForDeserialization
-                            ? "=> new SerializedMapper(_valuesBySerializedName);"
-                            : "=> new SerializedMapper(AllValues.ToDictionary(x => x._SerializedName));")}}
-
-                    public class SerializedMapper(Dictionary<string, {{props.DeclarationName}}> mapping)
-                    {
-                        private readonly Dictionary<string, {{props.DeclarationName}}> _mapping = mapping;
-
-                        public {{props.DeclarationName}}? Get(string serialized)
-                            => _mapping.TryGetValue(serialized, out var res)
-                                ? res : null;
-            
-                        public bool TryGet(string serialized, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
-                            => _mapping.TryGetValue(serialized, out result);
-            
-                        public bool Contains(string serialized)
-                            => _mapping.ContainsKey(serialized);
-                    }
                 }
             }
             #nullable disable
@@ -353,6 +319,7 @@ namespace EnumClassSourceGenerator
             """;
 
 
-        private const string _nl = "\r\n";
+        private const string _newLine = "\r\n";
+        private const string _commaNewLine = ",\r\n";
     }
 }

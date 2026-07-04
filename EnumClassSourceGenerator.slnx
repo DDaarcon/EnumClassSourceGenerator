@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="EnumClassSourceGenerator.Benchmarks/EnumClassSourceGenerator.Benchmarks.csproj" Id="918b17c0-baf7-45c5-a742-8633b32e3324" />
+  <Project Path="EnumClassSourceGenerator.UnitTests/EnumClassSourceGenerator.UnitTests.csproj" Id="f97ccd43-a82c-4795-bb01-fb6c9c321952" />
   <Project Path="EnumClassSourceGenerator/EnumClassSourceGenerator.csproj" />
 </Solution>
