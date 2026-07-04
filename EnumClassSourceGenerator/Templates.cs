@@ -87,7 +87,7 @@ namespace EnumClassSourceGenerator
             
             
                         {{(props.Config.UseDictionaryForDeserialization
-                            ? $"_valuesBySerializedName = _allValues.ToFrozenDictionary(x => x._serializedName);"
+                            ? $"_valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName);"
                             : "")}}
 
                         {{(isNumberedByUser
