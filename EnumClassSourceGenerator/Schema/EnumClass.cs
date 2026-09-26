@@ -1,11 +1,9 @@
-﻿using EnumClasses.SourceGenerators;
-using EnumClasses.SourceGenerators.Schema.Help;
-using EnumClasses.SourceGenerators.Templates;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 
@@ -39,13 +37,15 @@ internal static class EnumClass
         {
             public bool GenerateJsonConverter { get; set; }
             public bool GenerateRawEnum { get; set; }
-            public bool UseDictionaryForDeserialization { get; set; }
-            public bool UnrestrictedConstruction { get; set; }
+            public SearchMode SearchMode { get; set; }
+            public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; }
             public bool RequireIndexAssignmentInInitializer { get; set; }
         }
     }
 
-
+    public record struct OurAttribute(
+        OurAttributeType Type,
+        AttributeData Data);
 
     public enum OurAttributeType
     {
@@ -54,29 +54,10 @@ internal static class EnumClass
         NumberedEnumClass
     }
 
-    public static (OurAttributeType Type, AttributeSyntax? Attribute) FindOurAttribute(ClassDeclarationSyntax component)
+
+    public static Definition CollectDefinition(ClassDeclarationSyntax component, ISymbol componentSymbol, OurAttribute attribute, SemanticModel semanticModel, CancellationToken token)
     {
-        if (component.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClass, out var basicAttr))
-            return (OurAttributeType.EnumClass, basicAttr);
-
-        if (component.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.NumberedEnumClass, out var numberedAttr))
-            return (OurAttributeType.NumberedEnumClass, numberedAttr);
-
-        return (OurAttributeType.None, null);
-    }
-
-
-    public static Definition CollectDefinition(ClassDeclarationSyntax component, ISymbol componentSymbol, SemanticModel semanticModel, CancellationToken token)
-    {
-        var (attrSearchResult, foundAttr) = FindOurAttribute(component);
-
-        if (attrSearchResult is OurAttributeType.None)
-            return new Definition(
-                Status: Definition.StatusCode.NonApplicable,
-                OurAttributeType: OurAttributeType.None);
-
-
-        var config = CollectConfiguration(foundAttr!, semanticModel, token);
+        var config = CollectConfiguration(attribute.Data, semanticModel, token);
 
         var declarationLocation = component.Identifier.GetLocation();
         var declarationName = component.Identifier.ValueText;
@@ -94,7 +75,7 @@ internal static class EnumClass
             .Where(constructor => !constructor.IsImplicitlyDeclared)
             .ToArray();
 
-        var invalidConstructors = config.UnrestrictedConstruction
+        var invalidConstructors = config.ConstructionRestrictionMode is ConstructionRestrictionMode.Off
             ? []
             : explicitInstanceConstructors
                 .Where(constructor => constructor.DeclaredAccessibility is not (Accessibility.Private or Accessibility.Protected));
@@ -131,7 +112,7 @@ internal static class EnumClass
         {
             return new Definition(
                 Status: Definition.StatusCode.InvalidClassDeclaration,
-                OurAttributeType: attrSearchResult,
+                OurAttributeType: attribute.Type,
                 Location: declarationLocation,
                 DeclarationName: component.Identifier.ValueText,
                 NamespaceName: namespaceName,
@@ -149,7 +130,7 @@ internal static class EnumClass
             Status: enumValuesDiagnosticReports.Length > 0
                 ? Definition.StatusCode.InvalidValues
                 : Definition.StatusCode.Ok,
-            OurAttributeType: attrSearchResult,
+            OurAttributeType: attribute.Type,
             Location: component.GetLocation(),
             NamespaceName: namespaceName,
             DeclarationName: component.Identifier.ValueText,
@@ -179,54 +160,73 @@ internal static class EnumClass
     }
 
 
-    private static Definition.Configuration CollectConfiguration(AttributeSyntax attribute, SemanticModel semanticModel, CancellationToken token)
+    private static Definition.Configuration CollectConfiguration(AttributeData attribute, SemanticModel semanticModel, CancellationToken token)
     {
         bool generateJsonConverter = true;
         bool generateRawEnum = false;
-        bool useDictionaryForDeserialization = false;
-        bool unrestrictedConstruction = false;
+        SearchMode searchMode = EnumClassAttribute.DefaultSearchMode;
+        ConstructionRestrictionMode constructionRestrictionMode = EnumClassAttribute.DefaultConstructionRestrictionMode;
         bool requireIndexAssignmentInInitializer = true;
 
-        foreach (var arg in attribute.ArgumentList?.Arguments ?? [])
-        {
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.GenerateJsonConverter), arg, semanticModel, token, out var generateJsonConverterValue))
-                generateJsonConverter = generateJsonConverterValue;
 
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.GenerateRawEnum), arg, semanticModel, token, out var generateRawEnumValue))
-                generateRawEnum = generateRawEnumValue;
+        if (TryGetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter), attribute.NamedArguments, semanticModel, token, out var generateJsonConverterValue))
+            generateJsonConverter = generateJsonConverterValue;
 
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForDeserialization), arg, semanticModel, token, out var useDictionaryForDeserializationValue))
-                useDictionaryForDeserialization = useDictionaryForDeserializationValue;
+        if (TryGetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum), attribute.NamedArguments, semanticModel, token, out var generateRawEnumValue))
+            generateRawEnum = generateRawEnumValue;
 
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.UnrestrictedConstruction), arg, semanticModel, token, out var unrestrictedConstructionValue))
-                unrestrictedConstruction = unrestrictedConstructionValue;
+        if (TryGetEnumProperty<SearchMode>(nameof(EnumClassAttribute.SearchMode), attribute.NamedArguments, semanticModel, token, out var searchModeValue))
+            searchMode = searchModeValue;
 
-            if (TryGetBooleanProperty(nameof(Definition.Configuration.RequireIndexAssignmentInInitializer), arg, semanticModel, token, out var requireIndexAssignmentInInitializerValue))
-                requireIndexAssignmentInInitializer = requireIndexAssignmentInInitializerValue;
-        }
+        if (TryGetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode), attribute.NamedArguments, semanticModel, token, out var constructionRestrictionModeValue))
+            constructionRestrictionMode = constructionRestrictionModeValue;
+
+        if (TryGetBooleanProperty(nameof(NumberedEnumClassAttribute.RequireIndexAssignmentInInitializer), attribute.NamedArguments, semanticModel, token, out var requireIndexAssignmentInInitializerValue))
+            requireIndexAssignmentInInitializer = requireIndexAssignmentInInitializerValue;
 
         return new Definition.Configuration
         {
             GenerateJsonConverter = generateJsonConverter,
             GenerateRawEnum = generateRawEnum,
-            UseDictionaryForDeserialization = useDictionaryForDeserialization,
-            UnrestrictedConstruction = unrestrictedConstruction,
+            SearchMode = searchMode,
+            ConstructionRestrictionMode = constructionRestrictionMode,
             RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer
         };
 
 
-        static bool TryGetBooleanProperty(string propertyName, AttributeArgumentSyntax arg, SemanticModel semanticModel, CancellationToken token, out bool result)
+        static bool TryGetBooleanProperty(string propertyName, ImmutableArray<KeyValuePair<string, TypedConstant>> arguments, SemanticModel semanticModel, CancellationToken token, out bool result)
         {
             result = false;
 
-            if (!(arg.NameEquals?.Name.Identifier.Text.Equals(propertyName) ?? false))
+            var arg = arguments.FirstOrDefault(x => x.Key == propertyName).Value;
+
+            if (arg.Kind is TypedConstantKind.Error)
                 return false;
 
-            var value = semanticModel.GetConstantValue(arg.Expression, token);
-            if (!value.HasValue)
+            result = ((bool?)arg.Value).GetValueOrDefault();
+            return true;
+        }
+
+
+        static bool TryGetEnumProperty<TEnum>(string propertyName, ImmutableArray<KeyValuePair<string, TypedConstant>> arguments, SemanticModel semanticModel, CancellationToken token, out TEnum result)
+            where TEnum : struct, Enum
+        {
+            result = default;
+
+            var arg = arguments.FirstOrDefault(x => x.Key == propertyName).Value;
+
+            if (arg.Kind is TypedConstantKind.Error)
                 return false;
 
-            result = ((bool?)value.Value).GetValueOrDefault();
+            var converted = (int?)arg.Value;
+
+            if (!converted.HasValue)
+                return false;
+
+            if (!Enum.IsDefined(typeof(TEnum), converted.Value))
+                return false;
+
+            result = (TEnum)(object)converted.Value;
             return true;
         }
     }

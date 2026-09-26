@@ -1,4 +1,5 @@
-﻿using EnumClasses.SourceGenerators.Schema;
+﻿using EnumClasses.SourceGenerators.Deserialization;
+using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;
 using System.Net;
@@ -61,8 +62,6 @@ internal class EnumClassDeclarationTemplate
         bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.Def.FullyQualifiedCustomType is not null);
         var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.Def.FullyQualifiedCustomType!).Where(x => x.Key is not null);
 
-        bool isNumberedByUser = props.OurAttributeType is EnumClass.OurAttributeType.NumberedEnumClass;
-
         var valuesCount = enumValues.Length;
 
         return $$"""
@@ -72,19 +71,17 @@ internal class EnumClassDeclarationTemplate
                 {{(props.Config.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({props.DeclarationName}JsonConverter))]" : "")}}
                 {{props.Modifier}} partial class {{props.DeclarationName}} : System.IEquatable<{{props.DeclarationName}}>
                 {
-                    {{(!props.Config.UnrestrictedConstruction && !props.HasExplicitInstanceConstructor
-                    ? $"protected {props.DeclarationName}() {{ }}"
-                    : "")}}
+                    {{BuildConstructor(props)}}
 
                     static {{props.DeclarationName}}()
                     {
-                        {{(!isNumberedByUser
+                        {{(!CheckIfNumberedByUser(props)
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}.EnumIndex = {enumValue.DefaultIndex};"))
                         : "")}}
 
                         {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._internalIndex = {enumValue.DefaultIndex};"))}}
 
-                        {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.Name});"))}}
+                        {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.NormalizedName});"))}}
 
                         {{(props.Config.GenerateRawEnum
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._rawValue = Raw.{enumValue.Def.Name};"))
@@ -95,11 +92,11 @@ internal class EnumClassDeclarationTemplate
                         ];
             
             
-                        {{(props.Config.UseDictionaryForDeserialization
+                        {{(GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary
                         ? $"_valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName);"
                         : "")}}
 
-                        {{(isNumberedByUser
+                        {{(CheckIfNumberedByUser(props)
                         ? "_usedIndexes = null;"
                         : "")}}
                     }
@@ -151,6 +148,26 @@ internal class EnumClassDeclarationTemplate
             }
             #nullable disable
             """;
+
+        static string BuildConstructor(EnumClass.Definition props)
+        {
+            if (props.Config.ConstructionRestrictionMode is ConstructionRestrictionMode.Off
+                || props.HasExplicitInstanceConstructor)
+            {
+                return "";
+            }
+
+            var modifier = props.Config.ConstructionRestrictionMode switch
+            {
+                ConstructionRestrictionMode.WithPrivateDefaultConstructor => "private",
+                ConstructionRestrictionMode.WithProtectedDefaultConstructor or _ => "protected"
+            };
+
+            return $$"""
+                {{modifier}} {{props.DeclarationName}}() { }
+                """;
+        }
+
 
         static string BuildEnumIndexing(IndexedEnumValue[] enumValues, EnumClass.Definition props)
         {
@@ -505,7 +522,8 @@ internal class EnumClassDeclarationTemplate
         {
             return $$"""
                 private string _serializedName = null!;
-                {{(props.Config.UseDictionaryForDeserialization
+
+                {{(GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary
                     ? $"private static System.Collections.Frozen.FrozenDictionary<string, {props.DeclarationName}>? _valuesBySerializedName;"
                     : "")}}
 
@@ -526,7 +544,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildDeserializers(IndexedEnumValue[] enumValues, EnumClass.Definition props)
             {
-                if (props.Config.UseDictionaryForDeserialization)
+                if (GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary)
                     return $$"""
                         public static {{props.DeclarationName}}? Deserialize(string? serializedValue)
                         {
@@ -551,6 +569,9 @@ internal class EnumClassDeclarationTemplate
 
         static bool CheckIfNumberedByUser(EnumClass.Definition props)
             => props.OurAttributeType is EnumClass.OurAttributeType.NumberedEnumClass;
+
+        static SearchMethod GetDeserializationMethod(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+            => SearchMethodProvider.Get(props, enumValues.Length);
     }
 
     private record struct IndexedEnumValue(

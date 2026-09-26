@@ -6,9 +6,9 @@ namespace EnumClasses
 {
 
 #if ENUMCLASSES_SOURCE_GENERATOR
-    internal enum DeserializationMode
+    internal enum SearchMode
 #else
-    public enum DeserializationMode
+    public enum SearchMode
 #endif
     {
         /// <summary>

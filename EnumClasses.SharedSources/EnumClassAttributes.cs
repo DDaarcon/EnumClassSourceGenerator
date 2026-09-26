@@ -23,10 +23,10 @@ namespace EnumClasses
         public bool GenerateRawEnum { get; set; } = false;
 
         /// <summary>
-        /// Specifies the method for deserializing values. Defaults to <see cref="DefaultDeserializationMode"/>.
+        /// Specifies the method for searching/matching values. Used, among others, in deserialization. Defaults to <see cref="DefaultSearchMode"/>.
         /// </summary>
-        public DeserializationMode DeserializationMode { get; set; } = DefaultDeserializationMode;
-        public const DeserializationMode DefaultDeserializationMode = DeserializationMode.Optimized;
+        public SearchMode SearchMode { get; set; } = DefaultSearchMode;
+        public const SearchMode DefaultSearchMode = SearchMode.Optimized;
 
         /// <summary>
         /// Controls the constructors restrictions. Defaults to <see cref="DefaultConstructionRestrictionMode" />.

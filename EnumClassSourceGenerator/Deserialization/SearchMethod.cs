@@ -4,7 +4,7 @@ using System.Text;
 
 namespace EnumClasses.SourceGenerators.Deserialization;
 
-internal enum DeserializationMethod
+internal enum SearchMethod
 {
     IfChain,
     Dictionary

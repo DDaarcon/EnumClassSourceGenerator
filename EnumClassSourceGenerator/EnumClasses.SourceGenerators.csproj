@@ -18,8 +18,11 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" PrivateAssets="all" />
     </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\EnumClasses.Abstrations\EnumClasses.Abstractions.csproj" />
-    </ItemGroup>
-
+	<ItemGroup>
+		<Compile Include="../EnumClasses.SharedSources/**/*.cs" Link="ExternalSources\%(RecursiveDir)%(Filename)%(Extension)" Exclude="../EnumClasses.SharedSources/obj/**/*" />
+	</ItemGroup>
+	
+	<PropertyGroup>
+		<DefineConstants>$(DefineConstants);ENUMCLASSES_SOURCE_GENERATOR</DefineConstants>
+	</PropertyGroup>
 </Project>

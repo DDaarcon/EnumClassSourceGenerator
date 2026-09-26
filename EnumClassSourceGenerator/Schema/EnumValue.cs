@@ -62,7 +62,7 @@ internal static class EnumValue
             .OfType<PropertyDeclarationSyntax>()
             .Where(propertySyntax =>
             {
-                if (propertySyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnore, out _))
+                if (propertySyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnoreFullyQualified, semanticModel, token, out _))
                     return false;
 
                 var fieldTokenKinds = propertySyntax.ChildTokens().Select(x => x.Kind());
@@ -147,7 +147,7 @@ internal static class EnumValue
             .OfType<FieldDeclarationSyntax>()
             .Where(fieldSyntax =>
             {
-                if (fieldSyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnore, out _))
+                if (fieldSyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnoreFullyQualified, semanticModel, token, out _))
                     return false;
 
                 var fieldTokenKinds = fieldSyntax.ChildTokens().Select(x => x.Kind());

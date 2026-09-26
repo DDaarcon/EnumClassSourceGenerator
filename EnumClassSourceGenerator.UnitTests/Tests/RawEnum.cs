@@ -2,7 +2,7 @@ using EnumClasses;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 
-[EnumClass(GenerateRawEnum = true, UnrestrictedConstruction = true)]
+[EnumClass(GenerateRawEnum = true, ConstructionRestrictionMode = ConstructionRestrictionMode.Off)]
 internal partial class RawEnum
 {
     public static readonly RawEnum One = new();
@@ -13,7 +13,7 @@ internal sealed class SpecializedRawEnum : RawEnum
 {
 }
 
-[NumberedEnumClass(GenerateRawEnum = true)]
+[NumberedEnumClass(GenerateRawEnum = true, ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor)]
 internal partial class NumberedRawEnum
 {
     public static readonly NumberedRawEnum Ten = new()

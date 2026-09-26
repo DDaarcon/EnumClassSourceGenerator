@@ -48,7 +48,7 @@ public class ConstructionRestrictionTests
 
             namespace Consumer;
 
-            [EnumClass(UnrestrictedConstruction = false, GenerateJsonConverter = false)]
+            [EnumClass(ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor, GenerateJsonConverter = false)]
             internal partial class RestrictedEnum
             {
                 public static RestrictedEnum One { get; } = new();
@@ -86,7 +86,7 @@ public class ConstructionRestrictionTests
 
             namespace Consumer;
 
-            [EnumClass(UnrestrictedConstruction = false, GenerateJsonConverter = false)]
+            [EnumClass(ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor, GenerateJsonConverter = false)]
             internal partial class RestrictedEnum
             {
                 {{accessibility}} RestrictedEnum(int value)
@@ -116,7 +116,7 @@ public class ConstructionRestrictionTests
 
             namespace Consumer;
 
-            [EnumClass(UnrestrictedConstruction = false, GenerateJsonConverter = false)]
+            [EnumClass(ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor, GenerateJsonConverter = false)]
             internal partial class RestrictedEnum
             {
                 private RestrictedEnum(int value)

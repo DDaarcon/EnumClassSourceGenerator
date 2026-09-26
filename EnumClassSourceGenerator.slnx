@@ -4,5 +4,6 @@
     <Project Path="EnumClassSourceGenerator.UnitTests/EnumClassSourceGenerator.UnitTests.csproj" Id="f97ccd43-a82c-4795-bb01-fb6c9c321952" />
   </Folder>
   <Project Path="EnumClasses.Abstrations/EnumClasses.Abstractions.csproj" Id="d8cc6d2a-6767-4043-972d-2a2d4f1e7e33" />
+  <Project Path="EnumClasses.SharedSources/EnumClasses.SharedSources.csproj" Id="535b775b-0879-4e3a-8e50-fbab946f5053" />
   <Project Path="EnumClassSourceGenerator/EnumClasses.SourceGenerators.csproj" />
 </Solution>

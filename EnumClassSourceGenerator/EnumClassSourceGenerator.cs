@@ -22,17 +22,14 @@ namespace EnumClasses.SourceGenerators
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-#if DEBUG && false
-            System.Diagnostics.Debugger.Launch();
-#endif
             var basicAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.EnumClassFullyQualified,
                 predicate: CheckIfApplicable,
-                transform: ConstructModels);
+                transform: static (context, token) => ConstructModels(context, EnumClass.OurAttributeType.EnumClass, token));
             context.RegisterSourceOutput(basicAttributeIncrementalProps, GenerateEnumClass);
 
             var numberedAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.NumberedEnumClassFullyQualified,
                 predicate: CheckIfApplicable,
-                transform: ConstructModels);
+                transform: static (context, token) => ConstructModels(context, EnumClass.OurAttributeType.NumberedEnumClass, token));
             context.RegisterSourceOutput(numberedAttributeIncrementalProps, GenerateEnumClass);
         }
 
@@ -49,13 +46,17 @@ namespace EnumClasses.SourceGenerators
         }
 
 
-        private static EnumClass.Definition ConstructModels(GeneratorAttributeSyntaxContext context, CancellationToken token)
+        private static EnumClass.Definition ConstructModels(GeneratorAttributeSyntaxContext context, EnumClass.OurAttributeType attributeType, CancellationToken token)
         {
+            //Debug.Debugging.Breakpoint();
             var classNode = (context.TargetNode as ClassDeclarationSyntax)!;
 
             return EnumClass.CollectDefinition(
                 component: classNode,
                 componentSymbol: context.TargetSymbol,
+                attribute: new EnumClass.OurAttribute(
+                    Type: attributeType,
+                    Data: context.Attributes.First()),
                 context.SemanticModel,
                 token);
         }
