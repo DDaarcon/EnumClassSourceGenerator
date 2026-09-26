@@ -33,8 +33,13 @@ internal static class EnumValue
         var fieldDefinitionsCollection = CollectFieldDefinitions(component, semanticModel, token);
         var propertyDefinitionsCollection = CollectPropertyDefinitions(component, semanticModel, token);
 
+        var definitionsInDeclarationOrder = fieldDefinitionsCollection.Definitions
+            .Concat(propertyDefinitionsCollection.Definitions)
+            .OrderBy(definition => definition.Location.SourceSpan.Start)
+            .ToArray();
+
         return new CollectionResult(
-            Definitions: [.. fieldDefinitionsCollection.Definitions, .. propertyDefinitionsCollection.Definitions],
+            Definitions: definitionsInDeclarationOrder,
             HasAtLeastOneInvalidValueType: fieldDefinitionsCollection.HasAtLeastOneInvalidValueType || propertyDefinitionsCollection.HasAtLeastOneInvalidValueType,
             HasAtLeastOneInvalidValueAccessor: fieldDefinitionsCollection.HasAtLeastOneInvalidValueAccessor || propertyDefinitionsCollection.HasAtLeastOneInvalidValueAccessor);
     }
@@ -128,32 +133,35 @@ internal static class EnumValue
                 var fieldTokenKinds = x.ChildTokens().Select(x => x.Kind());
                 return _requiredModifiersForEnumFields.All(xx => fieldTokenKinds.Contains(xx));
             })
-            .Select(x =>
+            .SelectMany(fieldSyntax =>
             {
-                var fieldType = x.Declaration.Type;
+                var fieldType = fieldSyntax.Declaration.Type;
                 ITypeSymbol fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType, token).Type!;
 
-                var name = x.Declaration.Variables.First().Identifier.Text;
-                var location = x.GetLocation();
+                return fieldSyntax.Declaration.Variables.Select(variable =>
+                {
+                    var name = variable.Identifier.ValueText;
+                    var location = variable.GetLocation();
 
-                if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
-                    return new Definition(
-                        Name: name,
-                        FullyQualifiedCustomType: null,
-                        Location: location);
+                    if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
+                        return new Definition(
+                            Name: name,
+                            FullyQualifiedCustomType: null,
+                            Location: location);
 
-                if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
+                    if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
+                        return new Definition(
+                            Name: name,
+                            FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                            Location: location);
+
+                    hasAnyInvalidType = true;
                     return new Definition(
                         Name: name,
                         FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        Location: location);
-
-                hasAnyInvalidType = true;
-                return new Definition(
-                    Name: name,
-                    FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                    Location: location,
-                    HasInvalidType: true);
+                        Location: location,
+                        HasInvalidType: true);
+                });
             })
             .ToArray();
 
