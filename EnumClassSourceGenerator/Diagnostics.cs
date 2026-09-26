@@ -48,4 +48,22 @@ internal static class Diagnostics
             category: "EnumClassGenerator",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor NestedTypeNotSupported =
+        new(
+            id: "ENUMCLGEN006",
+            title: "Nested enum classes are not supported",
+            messageFormat: "Enum class '{0}' is nested inside another type. Move it to namespace scope.",
+            category: "EnumClassGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static readonly DiagnosticDescriptor GenericTypeNotSupported =
+        new(
+            id: "ENUMCLGEN007",
+            title: "Generic enum classes are not supported",
+            messageFormat: "Enum class '{0}' has type parameters. Generic enum classes are not currently supported.",
+            category: "EnumClassGenerator",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

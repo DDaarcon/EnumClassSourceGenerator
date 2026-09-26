@@ -25,7 +25,9 @@ internal static class EnumClass
             NonApplicable,
             NamespaceNotFound,
             InvalidModifiers,
-            InvalidValues
+            InvalidValues,
+            NestedTypeNotSupported,
+            GenericTypeNotSupported
         }
 
         public record struct Configuration
@@ -77,6 +79,20 @@ internal static class EnumClass
             return new Definition(
                 Status: Definition.StatusCode.NonApplicable,
                 OurAttributeType: OurAttributeType.None);
+
+        if (component.Parent is TypeDeclarationSyntax)
+            return new Definition(
+                Status: Definition.StatusCode.NestedTypeNotSupported,
+                OurAttributeType: attrSearchResult,
+                Location: component.Identifier.GetLocation(),
+                DeclarationName: component.Identifier.ValueText);
+
+        if (component.TypeParameterList is { Parameters.Count: > 0 })
+            return new Definition(
+                Status: Definition.StatusCode.GenericTypeNotSupported,
+                OurAttributeType: attrSearchResult,
+                Location: component.Identifier.GetLocation(),
+                DeclarationName: component.Identifier.ValueText);
 
         var namespaceName = GetNamespaceDeclaration(component);
         if (namespaceName is null)

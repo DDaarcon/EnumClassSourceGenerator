@@ -104,6 +104,12 @@ namespace EnumClassSourceGenerator
                 case EnumClass.Definition.StatusCode.InvalidModifiers:
                     context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidModifiers, props.Location));
                     return;
+                case EnumClass.Definition.StatusCode.NestedTypeNotSupported:
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.NestedTypeNotSupported, props.Location, props.DeclarationName));
+                    return;
+                case EnumClass.Definition.StatusCode.GenericTypeNotSupported:
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.GenericTypeNotSupported, props.Location, props.DeclarationName));
+                    return;
                 case EnumClass.Definition.StatusCode.InvalidValues:
                     foreach (var enumValue in props.EnumValues!.Value.Definitions)
                     {
