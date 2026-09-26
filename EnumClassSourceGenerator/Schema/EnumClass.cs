@@ -1,8 +1,9 @@
-﻿using EnumClassSourceGenerator.Templates;
+﻿using EnumClasses.SourceGenerators.Schema;
+using EnumClasses.SourceGenerators.Schema.Help;
+using EnumClassSourceGenerator.Templates;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -51,25 +52,13 @@ internal static class EnumClass
         NumberedEnumClass
     }
 
-    private const string _enumClassAttributeName = "EnumClass";
-    private const string _numberedEnumClassAttributeName = "NumberedEnumClass";
-
     public static (OurAttributeType Type, AttributeSyntax? Attribute) FindOurAttribute(ClassDeclarationSyntax component)
     {
-        var attributes = component.AttributeLists
-            .SelectMany(x => x.Attributes)
-            .ToArray();
+        if (component.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClass, out var basicAttr))
+            return (OurAttributeType.EnumClass, basicAttr);
 
-        if (attributes.Length == 0)
-            return (OurAttributeType.None, null);
-
-        var enumClassAttr = attributes.FirstOrDefault(attr => attr.Name.ToString() == _enumClassAttributeName);
-        if (enumClassAttr is not null)
-            return (OurAttributeType.EnumClass, enumClassAttr);
-    
-        var numberedEnumClassAttr = attributes.FirstOrDefault(attr => attr.Name.ToString() == _numberedEnumClassAttributeName);
-        if (numberedEnumClassAttr is not null)
-            return (OurAttributeType.NumberedEnumClass, numberedEnumClassAttr);
+        if (component.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.NumberedEnumClass, out var numberedAttr))
+            return (OurAttributeType.NumberedEnumClass, numberedAttr);
 
         return (OurAttributeType.None, null);
     }

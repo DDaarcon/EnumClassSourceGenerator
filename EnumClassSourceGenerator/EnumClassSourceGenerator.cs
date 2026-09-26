@@ -13,7 +13,6 @@ namespace EnumClassSourceGenerator
 {
     /*
      * TODO: 
-     * Auto generated switch method
      * Nonenumerable value attribute - to ignore static props and fields that would normally be considered an enum value
      * For Numbered Enum Class verify whether assigned EnumIndex values are free - upgrade to compile-time validation
      * 
@@ -26,13 +25,6 @@ namespace EnumClassSourceGenerator
 #if DEBUG && false
             System.Diagnostics.Debugger.Launch();
 #endif
-            context.RegisterSourceOutput(context.CompilationProvider, static (context, compilation) =>
-            {
-                if (compilation.GetTypeByMetadataName("GenEnumClass.BaseEnumClassAttribute") is null)
-                {
-                    context.AddSource("EnumClassAttribute.g.cs", SourceText.From(EnumClassAttributesTemplate.Template, Encoding.UTF8));
-                }
-            });
 
             var incrementalEnumDeclarationProps = context.SyntaxProvider.CreateSyntaxProvider(
                 predicate: CheckIfApplicable,

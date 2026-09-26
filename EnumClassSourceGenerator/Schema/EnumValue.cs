@@ -1,4 +1,6 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using EnumClasses.SourceGenerators.Schema;
+using EnumClasses.SourceGenerators.Schema.Help;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
@@ -57,9 +59,12 @@ internal static class EnumValue
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.PropertyDeclaration))
             .OfType<PropertyDeclarationSyntax>()
-            .Where(x =>
+            .Where(propertySyntax =>
             {
-                var fieldTokenKinds = x.ChildTokens().Select(x => x.Kind());
+                if (propertySyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnore, out _))
+                    return false;
+
+                var fieldTokenKinds = propertySyntax.ChildTokens().Select(x => x.Kind());
                 return _requiredModifiersForEnumProperties.All(xx => fieldTokenKinds.Contains(xx));
             })
             .Select(propertySyntax =>
@@ -123,9 +128,12 @@ internal static class EnumValue
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.FieldDeclaration))
             .OfType<FieldDeclarationSyntax>()
-            .Where(x =>
+            .Where(fieldSyntax =>
             {
-                var fieldTokenKinds = x.ChildTokens().Select(x => x.Kind());
+                if (fieldSyntax.AttributeLists.TryGetByName(SchemaConsts.AttributeNames.EnumClassIgnore, out _))
+                    return false;
+
+                var fieldTokenKinds = fieldSyntax.ChildTokens().Select(x => x.Kind());
                 return _requiredModifiersForEnumFields.All(xx => fieldTokenKinds.Contains(xx));
             })
             .SelectMany(fieldSyntax =>
