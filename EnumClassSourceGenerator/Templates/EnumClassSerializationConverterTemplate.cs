@@ -1,9 +1,9 @@
-﻿using EnumClassSourceGenerator.Schema;
+﻿using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace EnumClassSourceGenerator.Templates;
+namespace EnumClasses.SourceGenerators.Templates;
 
 internal class EnumClassSerializationConverterTemplate
 {

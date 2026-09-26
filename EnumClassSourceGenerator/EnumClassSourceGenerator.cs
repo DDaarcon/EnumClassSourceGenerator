@@ -1,5 +1,5 @@
-﻿using EnumClassSourceGenerator.Schema;
-using EnumClassSourceGenerator.Templates;
+﻿using EnumClasses.SourceGenerators.Schema;
+using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,7 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 
-namespace EnumClassSourceGenerator
+namespace EnumClasses.SourceGenerators
 {
     /*
      * TODO: 
@@ -25,36 +25,15 @@ namespace EnumClassSourceGenerator
 #if DEBUG && false
             System.Diagnostics.Debugger.Launch();
 #endif
-
-            var incrementalEnumDeclarationProps = context.SyntaxProvider.CreateSyntaxProvider(
+            var basicAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.EnumClassFullyQualified,
                 predicate: CheckIfApplicable,
                 transform: ConstructModels);
+            context.RegisterSourceOutput(basicAttributeIncrementalProps, GenerateEnumClass);
 
-            context.RegisterSourceOutput(incrementalEnumDeclarationProps, static (context, props) =>
-            {
-                try
-                {
-                    ReportErrors(context, props);
-
-                    if (props.Status is not (EnumClass.Definition.StatusCode.Ok
-                        or EnumClass.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
-                    {
-                        return;
-                    }
-
-                    if (props.Config.GenerateJsonConverter)
-                    {
-                        context.AddSource($"{props.DeclarationName}JsonConverter.g.cs",
-                            SourceText.From(EnumClassSerializationConverterTemplate.Build(props), Encoding.UTF8));
-                    }
-                    context.AddSource($"{props.DeclarationName}.g.cs",
-                        SourceText.From(EnumClassDeclarationTemplate.Build(props), Encoding.UTF8));
-                }
-                catch (Exception ex)
-                {
-                    context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Location, ex.Message, props.DeclarationName ?? "N/A"));
-                }
-            });
+            var numberedAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.NumberedEnumClassFullyQualified,
+                predicate: CheckIfApplicable,
+                transform: ConstructModels);
+            context.RegisterSourceOutput(numberedAttributeIncrementalProps, GenerateEnumClass);
         }
 
 
@@ -66,17 +45,46 @@ namespace EnumClassSourceGenerator
             if (node is not ClassDeclarationSyntax classNode)
                 return false;
 
-            var attr = EnumClass.FindOurAttribute(classNode);
-
-            return attr.Type is not EnumClass.OurAttributeType.None;
+            return true;
         }
 
 
-        private static EnumClass.Definition ConstructModels(GeneratorSyntaxContext context, CancellationToken token)
+        private static EnumClass.Definition ConstructModels(GeneratorAttributeSyntaxContext context, CancellationToken token)
         {
-            var classNode = (context.Node as ClassDeclarationSyntax)!;
+            var classNode = (context.TargetNode as ClassDeclarationSyntax)!;
 
-            return EnumClass.CollectDefinition(classNode, context.SemanticModel, token);
+            return EnumClass.CollectDefinition(
+                component: classNode,
+                componentSymbol: context.TargetSymbol,
+                context.SemanticModel,
+                token);
+        }
+
+        private static void GenerateEnumClass(SourceProductionContext context, EnumClass.Definition props)
+        {
+            try
+            {
+                ReportErrors(context, props);
+
+                if (props.Status is not
+                    (EnumClass.Definition.StatusCode.Ok
+                        or EnumClass.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
+                {
+                    return;
+                }
+
+                if (props.Config.GenerateJsonConverter)
+                {
+                    context.AddSource($"{props.FullyQualifiedName}JsonConverter.g.cs",
+                        SourceText.From(EnumClassSerializationConverterTemplate.Build(props), Encoding.UTF8));
+                }
+                context.AddSource($"{props.FullyQualifiedName}.g.cs",
+                    SourceText.From(EnumClassDeclarationTemplate.Build(props), Encoding.UTF8));
+            }
+            catch (Exception ex)
+            {
+                context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Location, ex.Message, props.DeclarationName ?? "N/A"));
+            }
         }
 
 

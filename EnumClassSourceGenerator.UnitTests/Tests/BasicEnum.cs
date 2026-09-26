@@ -1,4 +1,4 @@
-﻿using GenEnumClass;
+﻿using EnumClasses;
 using System;
 using System.Collections.Generic;
 using System.Text;

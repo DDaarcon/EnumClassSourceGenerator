@@ -1,9 +1,9 @@
-﻿using EnumClassSourceGenerator.Schema;
+﻿using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;
 using System.Net;
 
-namespace EnumClassSourceGenerator.Templates;
+namespace EnumClasses.SourceGenerators.Templates;
 
 internal class EnumClassDeclarationTemplate
 {
@@ -78,6 +78,8 @@ internal class EnumClassDeclarationTemplate
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}.EnumIndex = {enumValue.DefaultIndex};"))
                         : "")}}
 
+                        {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._internalIndex = {enumValue.DefaultIndex};"))}}
+
                         {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.Name});"))}}
 
                         {{(props.Config.GenerateRawEnum
@@ -101,6 +103,8 @@ internal class EnumClassDeclarationTemplate
             
                     private static System.Collections.Immutable.ImmutableArray<{{props.DeclarationName}}> _allValues;
                     public static System.Collections.Generic.IReadOnlyList<{{props.DeclarationName}}> AllValues => _allValues;
+
+                    private int _internalIndex;
             
 
                     {{BuildEnumIndexing(enumValues, props)}}
@@ -111,7 +115,7 @@ internal class EnumClassDeclarationTemplate
 
                     {{BuildTypeMatchingWhenApplicable(enumValues, props)}}
 
-                    {{BuildValueMatching(enumValues)}}
+                    {{BuildValueMatching(enumValues, props)}}
                             
                     {{BuildNumberingHelpersWhenApplicable(props)}}
 
@@ -136,7 +140,7 @@ internal class EnumClassDeclarationTemplate
                     }
                     public override int GetHashCode()
                     {
-                        return EnumIndex.GetHashCode();
+                        return RuntimeHelpers.GetHashCode(this);
                     }
 
                 }
@@ -286,34 +290,149 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildValueMatching(IndexedEnumValue[] enumValues)
+        static string BuildValueMatching(IndexedEnumValue[] enumValues, EnumClass.Definition props)
         {
             return $$"""
+                /// <summary>
+                /// Exhaustive switch. Executes a callback matching the value.
+                /// </summary>
+                public void SwitchEx(
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action on{x.Def.NormalizedName}"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
+                                on{{x.Def.NormalizedName}}();
+                                return;
+                            """))}}
+                        default:
+                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                    }
+                }
+
+                /// <summary>
+                /// Executes a callback matching the value.
+                /// </summary>
                 public void Switch(
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action? on{x.Def.NormalizedName} = null"))}})
                 {
-                    {{String.Join(Consts.Nl,
-                        enumValues.Select(x => $$"""
-                            if (AreEqual(this, {{x.Def.Name}}))
-                            {
-                                on{{x.Def.NormalizedName}}?.Invoke();
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
+                                on{{x.Def.NormalizedName}}();
                                 return;
-                            }
                             """))}}
+                    }
                 }
-                
-                public TResult? Switch<TResult>(
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult>? on{x.Def.NormalizedName} = null"))}})
-                    where TResult : class
+
+                /// <summary>
+                /// Exhaustive switch. Executes a callback matching the value.
+                /// </summary>
+                public void SwitchEx<TState>(
+                    TState state,
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState> on{x.Def.NormalizedName}"))}})
                 {
-                    {{String.Join(Consts.Nl,
-                        enumValues.Select(x => $$"""
-                            if (AreEqual(this, {{x.Def.Name}}))
-                            {
-                                return on{{x.Def.NormalizedName}}?.Invoke();
-                            }
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
+                                on{{x.Def.NormalizedName}}(state);
+                                return;
                             """))}}
-                    return null;
+                        default:
+                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                    }
+                }
+
+                /// <summary>
+                /// Executes a callback matching the value.
+                /// </summary>
+                public void Switch<TState>(
+                    TState state,
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState>? on{x.Def.NormalizedName} = null"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
+                                on{{x.Def.NormalizedName}}(state);
+                                return;
+                            """))}}
+                    }
+                }
+
+
+
+
+                /// <summary>
+                /// Exhaustive match. Executes a callback matching the value and returns the result.
+                /// </summary>
+                public TResult MatchEx<TResult>(
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult> on{x.Def.NormalizedName}"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
+                                return on{{x.Def.NormalizedName}}();
+                            """))}}
+                        default:
+                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                    }
+                }
+
+                /// <summary>
+                /// Executes a callback matching the value and returns the result.
+                /// </summary>
+                public TResult? Match<TResult>(
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult>? on{x.Def.NormalizedName} = null"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
+                                return on{{x.Def.NormalizedName}}();
+                            """))}}
+                    }
+                    return default;
+                }
+
+
+                /// <summary>
+                /// Exhaustive match. Executes a callback matching the value and returns the result.
+                /// </summary>
+                public TResult MatchEx<TResult, TState>(
+                    TState state,
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult> on{x.Def.NormalizedName}"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
+                                return on{{x.Def.NormalizedName}}(state);
+                            """))}}
+                        default:
+                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                    }
+                }
+
+                /// <summary>
+                /// Executes a callback matching the value and returns the result.
+                /// </summary>
+                public TResult? Match<TResult, TState>(
+                    TState state,
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult>? on{x.Def.NormalizedName} = null"))}})
+                {
+                    switch (_internalIndex)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
+                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
+                                return on{{x.Def.NormalizedName}}(state);
+                            """))}}
+                    }
+                    return default;
                 }
                 """;
         }

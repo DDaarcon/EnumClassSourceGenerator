@@ -1,14 +1,15 @@
-﻿using EnumClasses.SourceGenerators.Schema;
-using EnumClasses.SourceGenerators.Schema.Help;
+﻿using EnumClasses.SourceGenerators.Schema.Help;
+using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 
-namespace EnumClassSourceGenerator.Schema;
+namespace EnumClasses.SourceGenerators.Schema;
 
 internal static class EnumValue
 {
@@ -24,12 +25,11 @@ internal static class EnumValue
     internal record struct Definition(
         string Name,
         string NormalizedName,
-        string? FullyQualifiedCustomType,
         Location Location,
-        bool HasInvalidType = false,
-        bool HasInvalidAccessors = false)
+        string? FullyQualifiedCustomType = null,
+        IEnumerable<Diagnostic>? DiagnosticReports = null)
     {
-        public readonly bool IsValid => !HasInvalidType && !HasInvalidAccessors;
+        public readonly bool IsValid => DiagnosticReports is null || !DiagnosticReports.Any();
     }
 
 
@@ -55,6 +55,7 @@ internal static class EnumValue
     private static CollectResult CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
+        var declarationName = component.Identifier.ValueText;
 
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.PropertyDeclaration))
@@ -77,42 +78,57 @@ internal static class EnumValue
                 var normalizedName = propertySyntax.Identifier.ValueText;
                 var location = propertySyntax.GetLocation();
 
-                if (propertySyntax.AccessorList!.Accessors.Any(x => x.IsKind(SyntaxKind.SetAccessorDeclaration) || x.IsKind(SyntaxKind.InitAccessorDeclaration))
-                    || propertySyntax.AccessorList.Accessors.All(x => !x.IsKind(SyntaxKind.GetAccessorDeclaration)))
-                {
-                    return new Definition(
-                        Name: name,
-                        NormalizedName: normalizedName,
-                        FullyQualifiedCustomType: null,
-                        Location: location,
-                        HasInvalidAccessors: true);
-                }
+                var reports = new List<Diagnostic>();
 
-                if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
-                    return new Definition(
-                        Name: name,
-                        NormalizedName: normalizedName,
-                        FullyQualifiedCustomType: null,
-                        Location: location);
+                var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name);
+                if (!isNameNotReserved)
+                    reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
 
-                if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
-                    return new Definition(
-                        Name: name,
-                        NormalizedName: normalizedName,
-                        FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                        Location: location);
+                var areAccessorsCorrect = IsInitializedGetOnlyAutoProperty(propertySyntax);
+                if (!areAccessorsCorrect)
+                    reports.Add(Diagnostics.InvalidEnumValueAccessors(location, name, declarationName));
+
+                var isOfMainType = SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol);
+
+                var isOfMainOrDerivedType = isOfMainType || IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel);
+                if (!isOfMainOrDerivedType)
+                    reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+
 
                 return new Definition(
                     Name: name,
                     NormalizedName: normalizedName,
-                    FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     Location: location,
-                    HasInvalidType: true);
+                    FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                    DiagnosticReports: reports);
             })
             .ToArray();
 
         return new CollectResult(
             Definitions: definitions);
+
+        static bool IsInitializedGetOnlyAutoProperty(
+            PropertyDeclarationSyntax property)
+        {
+            if (property.Initializer is null ||
+                property.ExpressionBody is not null ||
+                property.AccessorList is null)
+            {
+                return false;
+            }
+
+            var accessors = property.AccessorList.Accessors;
+
+            if (accessors.Count != 1)
+                return false;
+
+            var getter = accessors[0];
+
+            return getter.IsKind(SyntaxKind.GetAccessorDeclaration) &&
+                   getter.Body is null &&
+                   getter.ExpressionBody is null &&
+                   getter.SemicolonToken.IsKind(SyntaxKind.SemicolonToken);
+        }
     }
 
 
@@ -124,6 +140,7 @@ internal static class EnumValue
     private static CollectResult CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
+        var declarationName = component.Identifier.ValueText;
 
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.FieldDeclaration))
@@ -147,26 +164,25 @@ internal static class EnumValue
                     var normalizedName = variable.Identifier.ValueText;
                     var location = variable.GetLocation();
 
-                    if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
-                        return new Definition(
-                            Name: name,
-                            NormalizedName: normalizedName,
-                            FullyQualifiedCustomType: null,
-                            Location: location);
 
-                    if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
-                        return new Definition(
-                            Name: name,
-                            NormalizedName: normalizedName,
-                            FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            Location: location);
+                    var reports = new List<Diagnostic>();
+
+                    var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name);
+                    if (!isNameNotReserved)
+                        reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
+
+                    var isOfMainType = SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol);
+
+                    var isOfMainOrDerivedType = isOfMainType || IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel);
+                    if (!isOfMainOrDerivedType)
+                        reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
                     return new Definition(
                         Name: name,
                         NormalizedName: normalizedName,
-                        FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         Location: location,
-                        HasInvalidType: true);
+                        FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                        DiagnosticReports: reports);
                 });
             })
             .ToArray();

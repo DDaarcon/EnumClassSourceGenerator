@@ -1,7 +1,6 @@
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using System.Collections.Immutable;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 
@@ -11,7 +10,7 @@ public class UnsupportedDeclarationTests
     public void When_EnumClassIsNested_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()
     {
         const string source = """
-            using GenEnumClass;
+            using EnumClasses;
 
             namespace Consumer;
 
@@ -34,7 +33,7 @@ public class UnsupportedDeclarationTests
     public void When_EnumClassIsGeneric_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()
     {
         const string source = """
-            using GenEnumClass;
+            using EnumClasses;
 
             namespace Consumer;
 
@@ -48,6 +47,44 @@ public class UnsupportedDeclarationTests
 
         result.Diagnostics.Should().ContainSingle(x => x.Id == "ENUMCLGEN007");
         result.GeneratedSources.Should().NotContain(x => x.HintName == "GenericEnum.g.cs");
+    }
+
+    [Theory]
+    [InlineData("public static InvalidAccessorEnum Value => new();")]
+    [InlineData("public static InvalidAccessorEnum Value { get { return new(); } }")]
+    [InlineData("public static InvalidAccessorEnum Value { get; set; } = new();")]
+    [InlineData("public static InvalidAccessorEnum Value { get; init; } = new();")]
+    [InlineData("public static InvalidAccessorEnum Value { get; }")]
+    public void When_EnumClassValueIsNotInitializedGetOnlyAutoProperty_Then_ShouldReportInvalidAccessors(
+        string propertyDeclaration)
+    {
+        var source = $$"""
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass]
+            internal partial class InvalidAccessorEnum
+            {
+                {{propertyDeclaration}}
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN002")
+            .Subject;
+
+        diagnostic.GetMessage().Should().Contain("'Value'");
+        diagnostic.GetMessage().Should().Contain("'InvalidAccessorEnum'");
+
+        var generatedSource = string.Join(
+            Environment.NewLine,
+            result.GeneratedSources.Select(x => x.SourceText.ToString()));
+
+        generatedSource.Should().NotContain("Value._serializedName");
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN005");
     }
 
     private static GeneratorRunResult RunGenerator(string source)
@@ -67,7 +104,7 @@ public class UnsupportedDeclarationTests
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new global::EnumClassSourceGenerator.EnumClassSourceGenerator().AsSourceGenerator());
+            new global::EnumClasses.SourceGenerators.EnumClassSourceGenerator().AsSourceGenerator());
 
         driver = driver.RunGenerators(compilation);
 

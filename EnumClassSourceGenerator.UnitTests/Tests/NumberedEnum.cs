@@ -1,4 +1,4 @@
-using GenEnumClass;
+using EnumClasses;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 

@@ -1,6 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace EnumClassSourceGenerator;
+namespace EnumClasses.SourceGenerators;
 
 internal static class Diagnostics
 {
