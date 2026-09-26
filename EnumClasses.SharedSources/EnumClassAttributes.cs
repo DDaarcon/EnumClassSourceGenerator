@@ -6,7 +6,11 @@ namespace EnumClasses
     /// Base class for an attribute defining Enum Class. Do not use directly.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
+#if ENUMCLASSES_SOURCE_GENERATOR
+    internal abstract class BaseEnumClassAttribute : Attribute
+#else
     public abstract class BaseEnumClassAttribute : Attribute
+#endif
     {
         /// <summary>
         /// Flag enabling generation of a custom <see cref="Text.Json.Serialization.JsonConverter{T}"/> for the enum class. Defaults to <c>true</c>.
@@ -19,16 +23,16 @@ namespace EnumClasses
         public bool GenerateRawEnum { get; set; } = false;
 
         /// <summary>
-        /// Flag changing if-based matching into one based on a cached dictionary. 
+        /// Specifies the method for deserializing values. Defaults to <see cref="DefaultDeserializationMode"/>.
         /// </summary>
-        public bool UseDictionaryForDeserialization { get; set; } = false;
+        public DeserializationMode DeserializationMode { get; set; } = DefaultDeserializationMode;
+        public const DeserializationMode DefaultDeserializationMode = DeserializationMode.Optimized;
 
         /// <summary>
-        /// Allows constructors with accessibility other than <c>private</c>. Defaults to <c>false</c>.
-        /// When set to <c>false</c>, all user-defined instance constructors must be either private or protected;
-        /// a protected parameterless constructor is generated when no instance constructor is declared.
+        /// Controls the constructors restrictions. Defaults to <see cref="DefaultConstructionRestrictionMode" />.
         /// </summary>
-        public bool UnrestrictedConstruction { get; set; } = false;
+        public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; } = DefaultConstructionRestrictionMode;
+        public const ConstructionRestrictionMode DefaultConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor;
     }
 
 
@@ -37,7 +41,12 @@ namespace EnumClasses
     /// Enumerable values should be defined as either fields with `public static readonly` modifiers or properties with `public static` modifiers and only a getter (no setter).
     /// Enumerable values can be of a containing type type or one inheriting from it.
     /// </summary>
+    /// 
+#if ENUMCLASSES_SOURCE_GENERATOR
+    internal sealed class EnumClassAttribute : BaseEnumClassAttribute
+#else
     public sealed class EnumClassAttribute : BaseEnumClassAttribute
+#endif
     {
     }
 
@@ -47,7 +56,11 @@ namespace EnumClasses
     /// Enumerable values can be of a containing type type or one inheriting from it.<br />
     /// Numbered Enum Values has to have a value provided for `EnumIndex` property.
     /// </summary>
+#if ENUMCLASSES_SOURCE_GENERATOR
+    internal sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
+#else
     public sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
+#endif
     {
         /// <summary>
         /// Flag controlling presence of `require` keyword for `EnumIndex` property.

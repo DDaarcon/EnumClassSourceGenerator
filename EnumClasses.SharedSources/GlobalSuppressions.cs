@@ -5,5 +5,4 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-/// for skipping .Abstractions on public definitions
-[assembly: SuppressMessage("Style", "IDE0130:Namespace does not match folder structure", Justification = "<Pending>", Scope = "namespace", Target = "~N:EnumClasses")]
+[assembly: SuppressMessage("Style", "IDE0130:Namespace does not match folder structure", Justification = "For skipping .Abstractions on public definitions.", Scope = "namespace", Target = "~N:EnumClasses")]
