@@ -99,5 +99,17 @@ internal static class Diagnostics
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+
+    public static Diagnostic NonPrivateConstructorOnRestrictedEnumClass(Location? constructorLocation, string declarationName)
+        => Diagnostic.Create(NonPrivateConstructorOnRestrictedEnumClassDescriptor, constructorLocation, declarationName);
+    public static readonly DiagnosticDescriptor NonPrivateConstructorOnRestrictedEnumClassDescriptor =
+        new(
+            id: "ENUMCLGEN009",
+            title: "Restricted Enum Class constructors must be private",
+            messageFormat: "Constructor on Enum Class '{0}' must be private when UnrestrictedConstruction is false",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         public const string Category = "EnumClassGenerator";
 }

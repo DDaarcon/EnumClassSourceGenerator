@@ -5,7 +5,7 @@ using System.Text;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 
-[EnumClass]
+[EnumClass(UnrestrictedConstruction = true)]
 internal partial class BasicEnum
 {
     public static readonly BasicEnum One = new()

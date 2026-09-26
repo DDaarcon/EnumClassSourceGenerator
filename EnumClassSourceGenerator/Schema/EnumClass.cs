@@ -21,6 +21,7 @@ internal static class EnumClass
         string? NamespaceName = null,
         string? Modifier = null,
         Definition.Configuration Config = new(),
+        bool HasExplicitInstanceConstructor = false,
         EnumValue.CollectResult? EnumValues = null,
         IEnumerable<Diagnostic>? DiagnosticReports = null)
     {
@@ -30,11 +31,8 @@ internal static class EnumClass
         {
             Ok,
             NonApplicable,
-            NamespaceNotFound,
-            InvalidModifiers,
-            InvalidValues,
-            NestedTypeNotSupported,
-            GenericTypeNotSupported
+            InvalidClassDeclaration,
+            InvalidValues
         }
 
         public record struct Configuration
@@ -42,6 +40,7 @@ internal static class EnumClass
             public bool GenerateJsonConverter { get; set; }
             public bool GenerateRawEnum { get; set; }
             public bool UseDictionaryForDeserialization { get; set; }
+            public bool UnrestrictedConstruction { get; set; }
             public bool RequireIndexAssignmentInInitializer { get; set; }
         }
     }
@@ -76,60 +75,71 @@ internal static class EnumClass
                 Status: Definition.StatusCode.NonApplicable,
                 OurAttributeType: OurAttributeType.None);
 
+
+        var config = CollectConfiguration(foundAttr!, semanticModel, token);
+
         var declarationLocation = component.Identifier.GetLocation();
         var declarationName = component.Identifier.ValueText;
 
         var namespaceName = GetNamespaceDeclaration(componentSymbol);
 
-
-        var userDeclarationValidationResult = ValidateUserDeclaration();
-        if (userDeclarationValidationResult.Status is not Definition.StatusCode.Ok)
-            return userDeclarationValidationResult;
-        Definition ValidateUserDeclaration()
-        {
-            bool isNested = component.Parent is TypeDeclarationSyntax;
-            bool isGeneric = component.TypeParameterList is { Parameters.Count: > 0 };
-            bool isNamespaceMissing = namespaceName is null;
-
-            var reports = new List<Diagnostic>();
-            if (isNested)
-                reports.Add(Diagnostics.NestedTypeNotSupported(declarationLocation, declarationName));
-            if (isGeneric)
-                reports.Add(Diagnostics.GenericTypeNotSupported(declarationLocation, declarationName));
-            if (isNamespaceMissing)
-                reports.Add(Diagnostics.NamespaceNotFound(declarationLocation, declarationName));
-
-            return new Definition(
-                Status: isNested
-                    ? Definition.StatusCode.NestedTypeNotSupported
-                    : isGeneric
-                        ? Definition.StatusCode.GenericTypeNotSupported
-                        : Definition.StatusCode.Ok,
-                OurAttributeType: attrSearchResult,
-                Location: declarationLocation,
-                DeclarationName: component.Identifier.ValueText,
-                NamespaceName: namespaceName,
-                DiagnosticReports: reports);
-        }
-
-        if (namespaceName is null)
-            return new Definition(
-                Status: Definition.StatusCode.NamespaceNotFound,
-                OurAttributeType: attrSearchResult,
-                DiagnosticReports: [Diagnostics.NamespaceNotFound(declarationLocation, declarationName)]);
-
-        var modifiers = component.Modifiers
+        var accessModifiers = component.Modifiers
             .Where(x => x.IsKind(SyntaxKind.PublicKeyword)
                 || x.IsKind(SyntaxKind.InternalKeyword)
                 || x.IsKind(SyntaxKind.PrivateKeyword)
                 || x.IsKind(SyntaxKind.ProtectedKeyword));
-        if (!modifiers.Any())
-            return new Definition(
-                Status: Definition.StatusCode.InvalidModifiers,
-                OurAttributeType: attrSearchResult,
-                DiagnosticReports: [Diagnostics.InvalidModifiers(declarationLocation, declarationName)]);
 
-        var config = CollectConfiguration(foundAttr!, semanticModel, token);
+        var typeSymbol = (INamedTypeSymbol)componentSymbol;
+        var explicitInstanceConstructors = typeSymbol.InstanceConstructors
+            .Where(constructor => !constructor.IsImplicitlyDeclared)
+            .ToArray();
+
+        var invalidConstructors = config.UnrestrictedConstruction
+            ? []
+            : explicitInstanceConstructors
+                .Where(constructor => constructor.DeclaredAccessibility is not (Accessibility.Private or Accessibility.Protected));
+
+
+        var reports = new List<Diagnostic>();
+
+        bool isNested = component.Parent is TypeDeclarationSyntax;
+        if (isNested)
+            reports.Add(Diagnostics.NestedTypeNotSupported(declarationLocation, declarationName));
+
+        bool isGeneric = component.TypeParameterList is { Parameters.Count: > 0 };
+        if (isGeneric)
+            reports.Add(Diagnostics.GenericTypeNotSupported(declarationLocation, declarationName));
+
+        bool isNamespaceMissing = namespaceName is null;
+        if (isNamespaceMissing)
+            reports.Add(Diagnostics.NamespaceNotFound(declarationLocation, declarationName));
+
+        bool areAccessorsMissing = !accessModifiers.Any();
+        if (areAccessorsMissing)
+            reports.Add(Diagnostics.InvalidModifiers(declarationLocation, declarationName));
+
+        bool areInvalidConstructorsDefined = invalidConstructors.Any();
+        if (areInvalidConstructorsDefined)
+            reports.AddRange(invalidConstructors
+                .Select(constructor => Diagnostics.NonPrivateConstructorOnRestrictedEnumClass(
+                    constructor.Locations.FirstOrDefault() ?? declarationLocation,
+                    declarationName)));
+
+        Span<bool> checks = stackalloc bool[] { isNested, isGeneric, isNamespaceMissing, areAccessorsMissing, areInvalidConstructorsDefined };
+
+        if (IsAnyTrue(checks))
+        {
+            return new Definition(
+                Status: Definition.StatusCode.InvalidClassDeclaration,
+                OurAttributeType: attrSearchResult,
+                Location: declarationLocation,
+                DeclarationName: component.Identifier.ValueText,
+                NamespaceName: namespaceName,
+                Modifier: accessModifiers.FirstOrDefault().Text,
+                Config: config,
+                HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
+                DiagnosticReports: reports);
+        }
 
         var enumValuesCollectionResult = EnumValue.CollectDefinitions(component, semanticModel, token);
 
@@ -143,10 +153,19 @@ internal static class EnumClass
             Location: component.GetLocation(),
             NamespaceName: namespaceName,
             DeclarationName: component.Identifier.ValueText,
-            Modifier: modifiers.First().Text,
+            Modifier: accessModifiers.First().Text,
             Config: config,
+            HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
             EnumValues: enumValuesCollectionResult,
             DiagnosticReports: enumValuesDiagnosticReports);
+
+        static bool IsAnyTrue(Span<bool> values)
+        {
+            foreach (var value in values)
+                if (value)
+                    return true;
+            return false;
+        }
     }
 
 
@@ -165,6 +184,7 @@ internal static class EnumClass
         bool generateJsonConverter = true;
         bool generateRawEnum = false;
         bool useDictionaryForDeserialization = false;
+        bool unrestrictedConstruction = false;
         bool requireIndexAssignmentInInitializer = true;
 
         foreach (var arg in attribute.ArgumentList?.Arguments ?? [])
@@ -178,6 +198,9 @@ internal static class EnumClass
             if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForDeserialization), arg, semanticModel, token, out var useDictionaryForDeserializationValue))
                 useDictionaryForDeserialization = useDictionaryForDeserializationValue;
 
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.UnrestrictedConstruction), arg, semanticModel, token, out var unrestrictedConstructionValue))
+                unrestrictedConstruction = unrestrictedConstructionValue;
+
             if (TryGetBooleanProperty(nameof(Definition.Configuration.RequireIndexAssignmentInInitializer), arg, semanticModel, token, out var requireIndexAssignmentInInitializerValue))
                 requireIndexAssignmentInInitializer = requireIndexAssignmentInInitializerValue;
         }
@@ -187,6 +210,7 @@ internal static class EnumClass
             GenerateJsonConverter = generateJsonConverter,
             GenerateRawEnum = generateRawEnum,
             UseDictionaryForDeserialization = useDictionaryForDeserialization,
+            UnrestrictedConstruction = unrestrictedConstruction,
             RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer
         };
 

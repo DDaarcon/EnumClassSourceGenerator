@@ -22,6 +22,13 @@ namespace EnumClasses
         /// Flag changing if-based matching into one based on a cached dictionary. 
         /// </summary>
         public bool UseDictionaryForDeserialization { get; set; } = false;
+
+        /// <summary>
+        /// Allows constructors with accessibility other than <c>private</c>. Defaults to <c>false</c>.
+        /// When set to <c>false</c>, all user-defined instance constructors must be either private or protected;
+        /// a protected parameterless constructor is generated when no instance constructor is declared.
+        /// </summary>
+        public bool UnrestrictedConstruction { get; set; } = false;
     }
 
 

@@ -8,8 +8,11 @@ public class EqualityTests
     [Fact]
     public void When_ComparingSameReference_Then_EqualsIsTrue()
     {
-        BasicEnum.One.Equals(BasicEnum.One).Should().BeTrue();
-        (BasicEnum.One == BasicEnum.One).Should().BeTrue();
+        var value = BasicEnum.One;
+        var sameReference = value;
+
+        value.Equals(sameReference).Should().BeTrue();
+        (value == sameReference).Should().BeTrue();
     }
 
     [Fact]
@@ -19,8 +22,9 @@ public class EqualityTests
     }
 
     [Fact]
-    public void When_GetHashCode_Then_ShouldUseEnumIndex()
+    public void When_GetHashCode_Then_ShouldUseReferenceIdentity()
     {
-        BasicEnum.One.GetHashCode().Should().Be(BasicEnum.One.EnumIndex.GetHashCode());
+        BasicEnum.One.GetHashCode().Should().Be(
+            System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(BasicEnum.One));
     }
 }

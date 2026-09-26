@@ -72,6 +72,10 @@ internal class EnumClassDeclarationTemplate
                 {{(props.Config.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({props.DeclarationName}JsonConverter))]" : "")}}
                 {{props.Modifier}} partial class {{props.DeclarationName}} : System.IEquatable<{{props.DeclarationName}}>
                 {
+                    {{(!props.Config.UnrestrictedConstruction && !props.HasExplicitInstanceConstructor
+                    ? $"protected {props.DeclarationName}() {{ }}"
+                    : "")}}
+
                     static {{props.DeclarationName}}()
                     {
                         {{(!isNumberedByUser
@@ -140,7 +144,7 @@ internal class EnumClassDeclarationTemplate
                     }
                     public override int GetHashCode()
                     {
-                        return RuntimeHelpers.GetHashCode(this);
+                        return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
                     }
 
                 }
