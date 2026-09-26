@@ -1,7 +1,9 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using EnumClassSourceGenerator.Templates;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 
@@ -17,7 +19,8 @@ internal static class EnumClass
         string? NamespaceName = null,
         string? Modifier = null,
         Definition.Configuration Config = new(),
-        EnumValue.CollectionResult? EnumValues = null)
+        EnumValue.CollectResult? EnumValues = null,
+        IEnumerable<Diagnostic>? DiagnosticReports = null)
     {
         public enum StatusCode
         {
@@ -81,25 +84,42 @@ internal static class EnumClass
                 Status: Definition.StatusCode.NonApplicable,
                 OurAttributeType: OurAttributeType.None);
 
-        if (component.Parent is TypeDeclarationSyntax)
-            return new Definition(
-                Status: Definition.StatusCode.NestedTypeNotSupported,
-                OurAttributeType: attrSearchResult,
-                Location: component.Identifier.GetLocation(),
-                DeclarationName: component.Identifier.ValueText);
+        var declarationLocation = component.Identifier.GetLocation();
+        var declarationName = component.Identifier.ValueText;
 
-        if (component.TypeParameterList is { Parameters.Count: > 0 })
+
+        var userDeclarationValidationResult = ValidateUserDeclaration();
+        if (userDeclarationValidationResult.Status is not Definition.StatusCode.Ok)
+            return userDeclarationValidationResult;
+        Definition ValidateUserDeclaration()
+        {
+            bool isNested = component.Parent is TypeDeclarationSyntax;
+            bool isGeneric = component.TypeParameterList is { Parameters.Count: > 0 };
+
+            var reports = new List<Diagnostic>();
+            if (isNested)
+                reports.Add(Diagnostics.NestedTypeNotSupported(declarationLocation, declarationName));
+            if (isGeneric)
+                reports.Add(Diagnostics.GenericTypeNotSupported(declarationLocation, declarationName));
+
             return new Definition(
-                Status: Definition.StatusCode.GenericTypeNotSupported,
+                Status: isNested
+                    ? Definition.StatusCode.NestedTypeNotSupported
+                    : isGeneric
+                        ? Definition.StatusCode.GenericTypeNotSupported
+                        : Definition.StatusCode.Ok,
                 OurAttributeType: attrSearchResult,
-                Location: component.Identifier.GetLocation(),
-                DeclarationName: component.Identifier.ValueText);
+                Location: declarationLocation,
+                DeclarationName: component.Identifier.ValueText,
+                DiagnosticReports: reports);
+        }
 
         var namespaceName = GetNamespaceDeclaration(component);
         if (namespaceName is null)
             return new Definition(
                 Status: Definition.StatusCode.NamespaceNotFound,
-                OurAttributeType: attrSearchResult);
+                OurAttributeType: attrSearchResult,
+                DiagnosticReports: [Diagnostics.NamespaceNotFound(declarationLocation, declarationName)]);
 
         var modifiers = component.Modifiers
             .Where(x => x.IsKind(SyntaxKind.PublicKeyword)
@@ -109,14 +129,43 @@ internal static class EnumClass
         if (!modifiers.Any())
             return new Definition(
                 Status: Definition.StatusCode.InvalidModifiers,
-                OurAttributeType: attrSearchResult);
+                OurAttributeType: attrSearchResult,
+                DiagnosticReports: [Diagnostics.InvalidModifiers(declarationLocation, declarationName)]);
 
         var config = CollectConfiguration(foundAttr!, semanticModel, token);
 
         var enumValuesCollectionResult = EnumValue.CollectDefinitions(component, semanticModel, token);
+        var (validValues, valuesValidationReports) = FilterInvalidValues();
+        (EnumValue.Definition[], Diagnostic[]) FilterInvalidValues()
+        {
+            var withCollidingName = enumValuesCollectionResult.Definitions
+                .Where(x => EnumClassDeclarationTemplate.CheckIfNameIsReserved(x.NormalizedName));
+
+            var withInvalidType = enumValuesCollectionResult.Definitions
+                .Where(x => x.HasInvalidType);
+
+            var withInvalidAccessors = enumValuesCollectionResult.Definitions
+                .Where(x => x.HasInvalidAccessors);
+
+            return (
+                enumValuesCollectionResult.Definitions
+                    .Except(withCollidingName)
+                    .Except(withInvalidType)
+                    .Except(withInvalidAccessors)
+                    .ToArray(),
+                withCollidingName
+                    .Select(x => Diagnostics.ReservedKeywordUsedForValue(x.Location, x.NormalizedName, declarationName))
+                    .Concat(
+                        withInvalidType.Select(x => Diagnostics.InvalidEnumValueType(x.Location, x.NormalizedName, declarationName, valueTypeName: x.FullyQualifiedCustomType ?? "undefined")))
+                    .Concat(
+                        withInvalidAccessors.Select(x => Diagnostics.InvalidEnumValueAccessors(x.Location, x.NormalizedName, declarationName)))
+                    .ToArray()
+            );
+        }
+
 
         return new Definition(
-            Status: enumValuesCollectionResult.HasAtLeastOneInvalidValueAccessor || enumValuesCollectionResult.HasAtLeastOneInvalidValueType
+            Status: valuesValidationReports.Length > 0
                 ? Definition.StatusCode.InvalidValues
                 : Definition.StatusCode.Ok,
             OurAttributeType: attrSearchResult,
@@ -125,8 +174,11 @@ internal static class EnumClass
             DeclarationName: component.Identifier.ValueText,
             Modifier: modifiers.First().Text,
             Config: config,
-            EnumValues: enumValuesCollectionResult);
+            EnumValues: new EnumValue.CollectResult(validValues),
+            DiagnosticReports: valuesValidationReports);
     }
+
+
 
     private static string? GetNamespaceDeclaration(SyntaxNode? component)
     {

@@ -2,23 +2,26 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Text;
 using System.Threading;
 
 namespace EnumClassSourceGenerator.Schema;
 
 internal static class EnumValue
 {
-    internal record struct CollectionResult(
-        Definition[] Definitions,
-        bool HasAtLeastOneInvalidValueType = false,
-        bool HasAtLeastOneInvalidValueAccessor = false);
+    internal record struct CollectResult(
+        Definition[] Definitions);
 
+    /// <param name="Name">Name as declared in code</param>
+    /// <param name="NormalizedName">Displayable name, e.g. without '@' sign</param>
+    /// <param name="FullyQualifiedCustomType"></param>
+    /// <param name="Location"></param>
+    /// <param name="HasInvalidType"></param>
+    /// <param name="HasInvalidAccessors"></param>
     internal record struct Definition(
         string Name,
+        string NormalizedName,
         string? FullyQualifiedCustomType,
         Location Location,
         bool HasInvalidType = false,
@@ -28,7 +31,7 @@ internal static class EnumValue
     }
 
 
-    public static CollectionResult CollectDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    public static CollectResult CollectDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var fieldDefinitionsCollection = CollectFieldDefinitions(component, semanticModel, token);
         var propertyDefinitionsCollection = CollectPropertyDefinitions(component, semanticModel, token);
@@ -38,10 +41,8 @@ internal static class EnumValue
             .OrderBy(definition => definition.Location.SourceSpan.Start)
             .ToArray();
 
-        return new CollectionResult(
-            Definitions: definitionsInDeclarationOrder,
-            HasAtLeastOneInvalidValueType: fieldDefinitionsCollection.HasAtLeastOneInvalidValueType || propertyDefinitionsCollection.HasAtLeastOneInvalidValueType,
-            HasAtLeastOneInvalidValueAccessor: fieldDefinitionsCollection.HasAtLeastOneInvalidValueAccessor || propertyDefinitionsCollection.HasAtLeastOneInvalidValueAccessor);
+        return new CollectResult(
+            Definitions: definitionsInDeclarationOrder);
     }
 
 
@@ -49,12 +50,9 @@ internal static class EnumValue
         SyntaxKind.PublicKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectionResult CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectResult CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
-
-        bool hasAnyInvalidType = false;
-        bool hasAnyInvalidAccessor = false;
 
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.PropertyDeclaration))
@@ -70,16 +68,16 @@ internal static class EnumValue
                 var fieldType = propertySyntax.Type;
                 ITypeSymbol fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType, token).Type!;
 
-                var name = propertySyntax.Identifier.ValueText;
+                var name = propertySyntax.Identifier.Text;
+                var normalizedName = propertySyntax.Identifier.ValueText;
                 var location = propertySyntax.GetLocation();
 
                 if (propertySyntax.AccessorList!.Accessors.Any(x => x.IsKind(SyntaxKind.SetAccessorDeclaration) || x.IsKind(SyntaxKind.InitAccessorDeclaration))
                     || propertySyntax.AccessorList.Accessors.All(x => !x.IsKind(SyntaxKind.GetAccessorDeclaration)))
                 {
-                    hasAnyInvalidAccessor = true;
-
                     return new Definition(
                         Name: name,
+                        NormalizedName: normalizedName,
                         FullyQualifiedCustomType: null,
                         Location: location,
                         HasInvalidAccessors: true);
@@ -88,29 +86,28 @@ internal static class EnumValue
                 if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
                     return new Definition(
                         Name: name,
+                        NormalizedName: normalizedName,
                         FullyQualifiedCustomType: null,
                         Location: location);
 
                 if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
                     return new Definition(
                         Name: name,
+                        NormalizedName: normalizedName,
                         FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                         Location: location);
 
-                hasAnyInvalidType = true;
-
                 return new Definition(
                     Name: name,
+                    NormalizedName: normalizedName,
                     FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     Location: location,
                     HasInvalidType: true);
             })
             .ToArray();
 
-        return new CollectionResult(
-            Definitions: definitions,
-            HasAtLeastOneInvalidValueType: hasAnyInvalidType,
-            HasAtLeastOneInvalidValueAccessor: hasAnyInvalidAccessor);
+        return new CollectResult(
+            Definitions: definitions);
     }
 
 
@@ -119,11 +116,9 @@ internal static class EnumValue
         SyntaxKind.ReadOnlyKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectionResult CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectResult CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
-
-        bool hasAnyInvalidType = false;
 
         var definitions = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.FieldDeclaration))
@@ -140,24 +135,27 @@ internal static class EnumValue
 
                 return fieldSyntax.Declaration.Variables.Select(variable =>
                 {
-                    var name = variable.Identifier.ValueText;
+                    var name = variable.Identifier.Text;
+                    var normalizedName = variable.Identifier.ValueText;
                     var location = variable.GetLocation();
 
                     if (SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol))
                         return new Definition(
                             Name: name,
+                            NormalizedName: normalizedName,
                             FullyQualifiedCustomType: null,
                             Location: location);
 
                     if (IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel))
                         return new Definition(
                             Name: name,
+                            NormalizedName: normalizedName,
                             FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             Location: location);
 
-                    hasAnyInvalidType = true;
                     return new Definition(
                         Name: name,
+                        NormalizedName: normalizedName,
                         FullyQualifiedCustomType: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         Location: location,
                         HasInvalidType: true);
@@ -165,9 +163,8 @@ internal static class EnumValue
             })
             .ToArray();
 
-        return new CollectionResult(
-            Definitions: definitions,
-            HasAtLeastOneInvalidValueType: hasAnyInvalidType);
+        return new CollectResult(
+            Definitions: definitions);
     }
 
 

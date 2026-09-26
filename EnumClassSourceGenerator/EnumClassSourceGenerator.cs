@@ -1,9 +1,11 @@
 ﻿using EnumClassSourceGenerator.Schema;
+using EnumClassSourceGenerator.Templates;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -28,7 +30,7 @@ namespace EnumClassSourceGenerator
             {
                 if (compilation.GetTypeByMetadataName("GenEnumClass.BaseEnumClassAttribute") is null)
                 {
-                    context.AddSource("EnumClassAttribute.g.cs", SourceText.From(Templates.EnumClassAttribute, Encoding.UTF8));
+                    context.AddSource("EnumClassAttribute.g.cs", SourceText.From(EnumClassAttributesTemplate.Template, Encoding.UTF8));
                 }
             });
 
@@ -40,10 +42,7 @@ namespace EnumClassSourceGenerator
             {
                 try
                 {
-                    if (props.Status is not EnumClass.Definition.StatusCode.Ok)
-                    {
-                        ReportErrors(context, props);
-                    }
+                    ReportErrors(context, props);
 
                     if (props.Status is not (EnumClass.Definition.StatusCode.Ok
                         or EnumClass.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
@@ -54,14 +53,14 @@ namespace EnumClassSourceGenerator
                     if (props.Config.GenerateJsonConverter)
                     {
                         context.AddSource($"{props.DeclarationName}JsonConverter.g.cs",
-                            SourceText.From(Templates.BuildEnumClassSerializationConvertedDefinition(props), Encoding.UTF8));
+                            SourceText.From(EnumClassSerializationConverterTemplate.Build(props), Encoding.UTF8));
                     }
                     context.AddSource($"{props.DeclarationName}.g.cs",
-                        SourceText.From(Templates.BuildEnumClassDeclaration(props), Encoding.UTF8));
+                        SourceText.From(EnumClassDeclarationTemplate.Build(props), Encoding.UTF8));
                 }
                 catch (Exception ex)
                 {
-                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.UnexpectedException, props.Location, ex.Message));
+                    context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Location, ex.Message, props.DeclarationName ?? "N/A"));
                 }
             });
         }
@@ -91,38 +90,9 @@ namespace EnumClassSourceGenerator
 
         private static void ReportErrors(SourceProductionContext context, EnumClass.Definition props)
         {
-            switch (props.Status)
+            foreach (var report in props.DiagnosticReports ?? [])
             {
-                default:
-                case EnumClass.Definition.StatusCode.Ok:
-                case EnumClass.Definition.StatusCode.NonApplicable:
-                    return;
-                case EnumClass.Definition.StatusCode.NamespaceNotFound:
-                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.NamespaceNotFound, props.Location));
-                    return;
-                case EnumClass.Definition.StatusCode.InvalidModifiers:
-                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidModifiers, props.Location));
-                    return;
-                case EnumClass.Definition.StatusCode.NestedTypeNotSupported:
-                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.NestedTypeNotSupported, props.Location, props.DeclarationName));
-                    return;
-                case EnumClass.Definition.StatusCode.GenericTypeNotSupported:
-                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.GenericTypeNotSupported, props.Location, props.DeclarationName));
-                    return;
-                case EnumClass.Definition.StatusCode.InvalidValues:
-                    foreach (var enumValue in props.EnumValues!.Value.Definitions)
-                    {
-                        if (enumValue.HasInvalidType)
-                        {
-                            context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidEnumValueType, enumValue.Location, enumValue.Name, props.DeclarationName));
-                        }
-
-                        if (enumValue.HasInvalidAccessors)
-                        {
-                            context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidEnumValueAccessors, enumValue.Location, enumValue.Name, props.DeclarationName));
-                        }
-                    }
-                    return;
+                context.ReportDiagnostic(report);
             }
         }
     }
