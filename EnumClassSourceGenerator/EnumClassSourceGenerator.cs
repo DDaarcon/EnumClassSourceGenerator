@@ -11,7 +11,6 @@ namespace EnumClassSourceGenerator
 {
     /*
      * TODO: 
-     * Optional auto generation of enum when flag in attribute is set
      * Auto generated switch method
      * Nonenumerable value attribute - to ignore static props and fields that would normally be considered an enum value
      * For Numbered Enum Class verify whether assigned EnumIndex values are free - upgrade to compile-time validation

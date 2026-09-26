@@ -33,6 +33,7 @@ internal static class EnumClass
         public record struct Configuration
         {
             public bool GenerateJsonConverter { get; set; }
+            public bool GenerateRawEnum { get; set; }
             public bool UseDictionaryForDeserialization { get; set; }
             public bool RequireIndexAssignmentInInitializer { get; set; }
         }
@@ -144,6 +145,7 @@ internal static class EnumClass
     private static Definition.Configuration CollectConfiguration(AttributeSyntax attribute, SemanticModel semanticModel, CancellationToken token)
     {
         bool generateJsonConverter = true;
+        bool generateRawEnum = false;
         bool useDictionaryForDeserialization = false;
         bool requireIndexAssignmentInInitializer = true;
 
@@ -151,6 +153,9 @@ internal static class EnumClass
         {
             if (TryGetBooleanProperty(nameof(Definition.Configuration.GenerateJsonConverter), arg, semanticModel, token, out var generateJsonConverterValue))
                 generateJsonConverter = generateJsonConverterValue;
+
+            if (TryGetBooleanProperty(nameof(Definition.Configuration.GenerateRawEnum), arg, semanticModel, token, out var generateRawEnumValue))
+                generateRawEnum = generateRawEnumValue;
 
             if (TryGetBooleanProperty(nameof(Definition.Configuration.UseDictionaryForDeserialization), arg, semanticModel, token, out var useDictionaryForDeserializationValue))
                 useDictionaryForDeserialization = useDictionaryForDeserializationValue;
@@ -162,6 +167,7 @@ internal static class EnumClass
         return new Definition.Configuration
         {
             GenerateJsonConverter = generateJsonConverter,
+            GenerateRawEnum = generateRawEnum,
             UseDictionaryForDeserialization = useDictionaryForDeserialization,
             RequireIndexAssignmentInInitializer = requireIndexAssignmentInInitializer
         };

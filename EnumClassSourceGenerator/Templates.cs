@@ -17,6 +17,11 @@ namespace EnumClassSourceGenerator
                     public bool GenerateJsonConverter { get; set; } = true;
 
                     /// <summary>
+                    /// Flag enabling generation of a nested <c>Raw</c> enum and conversions between it and the enum class. Defaults to <c>false</c>.
+                    /// </summary>
+                    public bool GenerateRawEnum { get; set; } = false;
+
+                    /// <summary>
                     /// Flag changing if-based matching into one based on a cached dictionary. 
                     /// </summary>
                     public bool UseDictionaryForDeserialization { get; set; } = false;
@@ -80,6 +85,10 @@ namespace EnumClassSourceGenerator
                             : "")}}
 
                         {{string.Join(_newLine, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.Name});"))}}
+
+                        {{(props.Config.GenerateRawEnum
+                            ? string.Join(_newLine, enumValues.Select(enumValue => $"{enumValue.Def.Name}._rawValue = Raw.{enumValue.Def.Name};"))
+                            : "")}}
                         
                         _allValues = [
                             {{string.Join(_commaNewLine, enumValues.Select(enumValue => enumValue.Def.Name))}}
@@ -184,6 +193,61 @@ namespace EnumClassSourceGenerator
                         => GetByEnumIndex(index) is not null;
 
 
+                    {{(props.Config.GenerateRawEnum ? $$"""
+                        public enum Raw
+                        {
+                            {{String.Join(_commaNewLine, enumValues.Select(enumValue => enumValue.Def.Name))}}
+                        }
+
+                        public static {{props.DeclarationName}} FromRaw(Raw value)
+                        {
+                            if (TryFromRaw(value, out var result))
+                                return result;
+
+                            throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a defined raw enum value.");
+                        }
+
+                        public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                        {
+                            result = value switch
+                            {
+                                {{String.Join(_newLine, enumValues.Select(enumValue => $"Raw.{enumValue.Def.Name} => {enumValue.Def.Name},"))}}
+                                _ => null
+                            };
+
+                            return result is not null;
+                        }
+
+                        public Raw ToRaw() => ToRaw(this);
+
+                        public static Raw ToRaw({{props.DeclarationName}} value)
+                        {
+                            if (TryToRaw(value, out var result))
+                                return result;
+
+                            if (value is null)
+                                throw new System.ArgumentNullException(nameof(value));
+
+                            throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a declared enum class value.");
+                        }
+
+                        public static bool TryToRaw({{props.DeclarationName}}? value, out Raw result)
+                        {
+                            if (value?._rawValue is Raw rawValue)
+                            {
+                                result = rawValue;
+                                return true;
+                            }
+
+                            result = default;
+                            return false;
+                        }
+
+                        public static implicit operator {{props.DeclarationName}}(Raw value) => FromRaw(value);
+                        public static explicit operator Raw({{props.DeclarationName}} value) => ToRaw(value);
+                        """ : "")}}
+
+
                     {{(hasAnyCustomTypesForEnumValues ? $$"""
                         public static bool TryGetOfType<TValue>({{props.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
                             where TValue : {{props.DeclarationName}}
@@ -245,6 +309,7 @@ namespace EnumClassSourceGenerator
                         ? $"private static System.Collections.Frozen.FrozenDictionary<string, {props.DeclarationName}>? _valuesBySerializedName;"
                         : "")}}
                     private string _serializedName = null!;
+                    {{(props.Config.GenerateRawEnum ? "private Raw? _rawValue;" : "")}}
 
 
                             
