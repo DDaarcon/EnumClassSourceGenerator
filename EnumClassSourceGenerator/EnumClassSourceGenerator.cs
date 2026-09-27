@@ -1,4 +1,5 @@
-﻿using EnumClasses.SourceGenerators.Schema;
+﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.Schema;
 using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -22,15 +23,17 @@ namespace EnumClasses.SourceGenerators
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            var defaultsIncrementalProps = context.CompilationProvider.Select(static (compilation, token) => EnumClassDefaultsCollector.Collect(compilation.Assembly));
+
             var basicAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.EnumClassFullyQualified,
                 predicate: CheckIfApplicable,
-                transform: static (context, token) => ConstructModels(context, EnumClass.OurAttributeType.EnumClass, token));
-            context.RegisterSourceOutput(basicAttributeIncrementalProps, GenerateEnumClass);
+                transform: static (context, token) => ConstructClassDefinitions(context, EnumClassCollector.OurAttributeType.EnumClass, token));
+            context.RegisterSourceOutput(CombineDeclarationWithDefaults(basicAttributeIncrementalProps, defaultsIncrementalProps), GenerateEnumClass);
 
             var numberedAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.NumberedEnumClassFullyQualified,
                 predicate: CheckIfApplicable,
-                transform: static (context, token) => ConstructModels(context, EnumClass.OurAttributeType.NumberedEnumClass, token));
-            context.RegisterSourceOutput(numberedAttributeIncrementalProps, GenerateEnumClass);
+                transform: static (context, token) => ConstructClassDefinitions(context, EnumClassCollector.OurAttributeType.NumberedEnumClass, token));
+            context.RegisterSourceOutput(CombineDeclarationWithDefaults(numberedAttributeIncrementalProps, defaultsIncrementalProps), GenerateEnumClass);
         }
 
 
@@ -46,50 +49,62 @@ namespace EnumClasses.SourceGenerators
         }
 
 
-        private static EnumClass.Definition ConstructModels(GeneratorAttributeSyntaxContext context, EnumClass.OurAttributeType attributeType, CancellationToken token)
+        private static EnumClassCollector.Definition.WithConfig ConstructClassDefinitions(GeneratorAttributeSyntaxContext context, EnumClassCollector.OurAttributeType attributeType, CancellationToken token)
         {
-            //Debug.Debugging.Breakpoint();
             var classNode = (context.TargetNode as ClassDeclarationSyntax)!;
 
-            return EnumClass.CollectDefinition(
+            return EnumClassCollector.CollectDefinition(
                 component: classNode,
                 componentSymbol: context.TargetSymbol,
-                attribute: new EnumClass.OurAttribute(
+                attribute: new EnumClassCollector.OurAttribute(
                     Type: attributeType,
                     Data: context.Attributes.First()),
                 context.SemanticModel,
                 token);
         }
 
-        private static void GenerateEnumClass(SourceProductionContext context, EnumClass.Definition props)
+        private static IncrementalValuesProvider<EnumClassCollector.Definition.WithConfig> CombineDeclarationWithDefaults(
+            IncrementalValuesProvider<EnumClassCollector.Definition.WithConfig> declarations,
+            IncrementalValueProvider<Configuration> defaults)
+            => declarations.Combine(defaults)
+                .Select(static (item, token)
+                    => item.Left with
+                    {
+                        Configuration = ConfigurationComposer.Compose(item.Left.ConfigurationOverrides, item.Right)
+                    });
+
+
+
+
+        private static void GenerateEnumClass(SourceProductionContext context, EnumClassCollector.Definition.WithConfig props)
         {
             try
             {
-                ReportErrors(context, props);
+                ReportErrors(context, props.Definition);
 
-                if (props.Status is not
-                    (EnumClass.Definition.StatusCode.Ok
-                        or EnumClass.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
+                if (props.Definition.Status is not
+                    (EnumClassCollector.Definition.StatusCode.Ok
+                        or EnumClassCollector.Definition.StatusCode.InvalidValues)) // continue rendering skipping invalid values 
                 {
                     return;
                 }
 
-                if (props.Config.GenerateJsonConverter)
+                if (props.Configuration.GenerateJsonConverter)
                 {
-                    context.AddSource($"{props.FullyQualifiedName}JsonConverter.g.cs",
+                    context.AddSource($"{props.Definition.FullyQualifiedName}JsonConverter.g.cs",
                         SourceText.From(EnumClassSerializationConverterTemplate.Build(props), Encoding.UTF8));
                 }
-                context.AddSource($"{props.FullyQualifiedName}.g.cs",
+                context.AddSource($"{props.Definition.FullyQualifiedName}.g.cs",
                     SourceText.From(EnumClassDeclarationTemplate.Build(props), Encoding.UTF8));
             }
             catch (Exception ex)
             {
-                context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Location, ex.Message, props.DeclarationName ?? "N/A"));
+                context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Definition.Location, ex.Message, props.Definition.DeclarationName ?? "N/A"));
             }
         }
 
 
-        private static void ReportErrors(SourceProductionContext context, EnumClass.Definition props)
+        private static void ReportErrors(SourceProductionContext context, EnumClassCollector.Definition props)
         {
             foreach (var report in props.DiagnosticReports ?? [])
             {

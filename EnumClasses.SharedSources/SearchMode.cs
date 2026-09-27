@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EnumClasses
+﻿namespace EnumClasses
 {
-
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal enum SearchMode
 #else
@@ -14,14 +9,14 @@ namespace EnumClasses
         /// <summary>
         /// The matching method is decided based on the amount of values.
         /// </summary>
-        Optimized,
+        Optimized = 0,
         /// <summary>
         /// Forces matching with if chain.
         /// </summary>
-        ForceIfChain,
+        ForceIfChain = 1,
         /// <summary>
         /// Forces matching with a dictionary.
         /// </summary>
-        ForceDictionary
+        ForceDictionary = 2
     }
 }

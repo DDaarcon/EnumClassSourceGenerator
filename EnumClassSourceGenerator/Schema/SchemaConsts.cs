@@ -11,6 +11,7 @@ internal static class SchemaConsts
             (EnumClassFullyQualified, EnumClass) = GetIdentification(typeof(EnumClassAttribute));
             (NumberedEnumClassFullyQualified, NumberedEnumClass) = GetIdentification(typeof(NumberedEnumClassAttribute));
             (EnumClassIgnoreFullyQualified, EnumClassIgnore) = GetIdentification(typeof(EnumClassIgnoreAttribute));
+            (EnumClassDefaultsFullyQualified, EnumClassDefaults) = GetIdentification(typeof(EnumClassDefaultsAttribute));
         }
 
         public static string EnumClass { get; }
@@ -20,6 +21,9 @@ internal static class SchemaConsts
 
         public static string EnumClassIgnore { get; }
         public static string EnumClassIgnoreFullyQualified { get; }
+
+        public static string EnumClassDefaults { get; }
+        public static string EnumClassDefaultsFullyQualified { get; }
 
         private static (string FullyQualifiedName, string Name) GetIdentification(Type type)
             => (

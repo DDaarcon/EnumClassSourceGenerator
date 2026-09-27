@@ -2,7 +2,6 @@
 using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;
-using System.Net;
 
 namespace EnumClasses.SourceGenerators.Templates;
 
@@ -26,13 +25,16 @@ internal class EnumClassDeclarationTemplate
         "TryGetByEnumIndex",
         "ContainsEnumIndex",
         "Switch",
+        "SwitchEx",
+        "Match",
+        "MatchEx",
         "AreEqual",
         "Equals",
         "GetHashCode",
         "TryGetOfType",
         "_enumIndex",
         "_allValues",
-        "_valuesBySerializedName",
+        "_valuesBySerializedNameHash",
         "_serializedName",
 
         // Numbered
@@ -50,9 +52,11 @@ internal class EnumClassDeclarationTemplate
     ];
 
     public static string Build(
-        EnumClass.Definition props)
+        EnumClassCollector.Definition.WithConfig props)
     {
-        var enumValues = props.EnumValues!.Value.Definitions
+        var definition = props.Definition;
+
+        var enumValues = definition.EnumValues!.Value.Definitions
             .Where(x => x.IsValid)
             .Select((x, index) => new IndexedEnumValue(
                 DefaultIndex: index,
@@ -66,16 +70,16 @@ internal class EnumClassDeclarationTemplate
 
         return $$"""
             #nullable enable
-            namespace {{props.NamespaceName}}
+            namespace {{definition.NamespaceName}}
             {
-                {{(props.Config.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({props.DeclarationName}JsonConverter))]" : "")}}
-                {{props.Modifier}} partial class {{props.DeclarationName}} : System.IEquatable<{{props.DeclarationName}}>
+                {{(props.Configuration.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({definition.DeclarationName}JsonConverter))]" : "")}}
+                {{definition.Modifier}} partial class {{definition.DeclarationName}} : System.IEquatable<{{definition.DeclarationName}}>
                 {
                     {{BuildConstructor(props)}}
 
-                    static {{props.DeclarationName}}()
+                    static {{definition.DeclarationName}}()
                     {
-                        {{(!CheckIfNumberedByUser(props)
+                        {{(!CheckIfNumberedByUser(definition)
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}.EnumIndex = {enumValue.DefaultIndex};"))
                         : "")}}
 
@@ -83,7 +87,7 @@ internal class EnumClassDeclarationTemplate
 
                         {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.NormalizedName});"))}}
 
-                        {{(props.Config.GenerateRawEnum
+                        {{(props.Configuration.GenerateRawEnum
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._rawValue = Raw.{enumValue.Def.Name};"))
                         : "")}}
                         
@@ -93,17 +97,17 @@ internal class EnumClassDeclarationTemplate
             
             
                         {{(GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary
-                        ? $"_valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName);"
+                        ? $"_valuesBySerializedNameHash = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => string.GetHashCode(x._serializedName));"
                         : "")}}
 
-                        {{(CheckIfNumberedByUser(props)
+                        {{(CheckIfNumberedByUser(definition)
                         ? "_usedIndexes = null;"
                         : "")}}
                     }
 
             
-                    private static System.Collections.Immutable.ImmutableArray<{{props.DeclarationName}}> _allValues;
-                    public static System.Collections.Generic.IReadOnlyList<{{props.DeclarationName}}> AllValues => _allValues;
+                    private static System.Collections.Immutable.ImmutableArray<{{definition.DeclarationName}}> _allValues;
+                    public static System.Collections.Generic.IReadOnlyList<{{definition.DeclarationName}}> AllValues => _allValues;
 
                     private int _internalIndex;
             
@@ -114,20 +118,20 @@ internal class EnumClassDeclarationTemplate
 
                     {{BuildRawEnumWhenApplicable(enumValues, props)}}
 
-                    {{BuildTypeMatchingWhenApplicable(enumValues, props)}}
+                    {{BuildTypeMatchingWhenApplicable(enumValues, definition)}}
 
-                    {{BuildValueMatching(enumValues, props)}}
+                    {{BuildValueMatching(enumValues, definition)}}
                             
-                    {{BuildNumberingHelpersWhenApplicable(props)}}
+                    {{BuildNumberingHelpersWhenApplicable(definition)}}
 
                             
                     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-                    private static bool AreEqual({{props.DeclarationName}} one, {{props.DeclarationName}} two)
+                    private static bool AreEqual({{definition.DeclarationName}} one, {{definition.DeclarationName}} two)
                     {
                         return object.ReferenceEquals(one, two);
                     }
                             
-                    public bool Equals({{props.DeclarationName}}? other)
+                    public bool Equals({{definition.DeclarationName}}? other)
                     {
                         if (other is null)
                             return false;
@@ -137,7 +141,7 @@ internal class EnumClassDeclarationTemplate
                             
                     public override bool Equals(object? obj)
                     {
-                        return Equals(obj as {{props.DeclarationName}});
+                        return Equals(obj as {{definition.DeclarationName}});
                     }
                     public override int GetHashCode()
                     {
@@ -149,34 +153,34 @@ internal class EnumClassDeclarationTemplate
             #nullable disable
             """;
 
-        static string BuildConstructor(EnumClass.Definition props)
+        static string BuildConstructor(EnumClassCollector.Definition.WithConfig props)
         {
-            if (props.Config.ConstructionRestrictionMode is ConstructionRestrictionMode.Off
-                || props.HasExplicitInstanceConstructor)
+            if (props.Configuration.ConstructionRestrictionMode is ConstructionRestrictionMode.Off
+                || props.Definition.HasExplicitInstanceConstructor)
             {
                 return "";
             }
 
-            var modifier = props.Config.ConstructionRestrictionMode switch
+            var modifier = props.Configuration.ConstructionRestrictionMode switch
             {
                 ConstructionRestrictionMode.WithPrivateDefaultConstructor => "private",
                 ConstructionRestrictionMode.WithProtectedDefaultConstructor or _ => "protected"
             };
 
             return $$"""
-                {{modifier}} {{props.DeclarationName}}() { }
+                {{modifier}} {{props.Definition.DeclarationName}}() { }
                 """;
         }
 
 
-        static string BuildEnumIndexing(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+        static string BuildEnumIndexing(IndexedEnumValue[] enumValues, EnumClassCollector.Definition.WithConfig props)
         {
             return $$"""
                 {{BuildProperty(props)}}
 
-                {{BuildAccessorMethod(enumValues, props)}}
+                {{BuildAccessorMethod(enumValues, props.Definition)}}
                 
-                public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = GetByEnumIndex(index);
                     return result is not null;
@@ -186,14 +190,14 @@ internal class EnumClassDeclarationTemplate
                     => GetByEnumIndex(index) is not null;
                 """;
 
-            static string BuildProperty(EnumClass.Definition props)
+            static string BuildProperty(EnumClassCollector.Definition.WithConfig props)
             {
-                if (!CheckIfNumberedByUser(props))
+                if (!CheckIfNumberedByUser(props.Definition))
                     return """
                         public int EnumIndex { get; private set; }
                         """;
 
-                if (props.Config.RequireIndexAssignmentInInitializer)
+                if (props.Configuration.RequireIndexAssignmentInInitializer)
                     return """
                         private int _enumIndex;
                         public required int EnumIndex
@@ -221,18 +225,18 @@ internal class EnumClassDeclarationTemplate
                     """;
             }
 
-            static string BuildAccessorMethod(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+            static string BuildAccessorMethod(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
             {
                 return $$"""
-                    public static {{props.DeclarationName}}? GetByEnumIndex(int index)
+                    public static {{definition.DeclarationName}}? GetByEnumIndex(int index)
                     {
-                        {{BuildBody(enumValues, props)}}
+                        {{BuildBody(enumValues, definition)}}
                     }
                     """;
 
-                static string BuildBody(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+                static string BuildBody(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
                 {
-                    if (CheckIfNumberedByUser(props))
+                    if (CheckIfNumberedByUser(definition))
                         return $$"""
                             {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (index == {enumValue.Def.Name}.EnumIndex) return {enumValue.Def.Name};"))}}
                             return null;
@@ -249,9 +253,9 @@ internal class EnumClassDeclarationTemplate
             }
         }
 
-        static string BuildRawEnumWhenApplicable(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+        static string BuildRawEnumWhenApplicable(IndexedEnumValue[] enumValues, EnumClassCollector.Definition.WithConfig props)
         {
-            if (!props.Config.GenerateRawEnum)
+            if (!props.Configuration.GenerateRawEnum)
                 return "";
 
             return $$"""
@@ -262,7 +266,7 @@ internal class EnumClassDeclarationTemplate
                     {{String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Def.Name))}}
                 }
 
-                public static {{props.DeclarationName}} FromRaw(Raw value)
+                public static {{props.Definition.DeclarationName}} FromRaw(Raw value)
                 {
                     if (TryFromRaw(value, out var result))
                         return result;
@@ -270,7 +274,7 @@ internal class EnumClassDeclarationTemplate
                     throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a defined raw enum value.");
                 }
 
-                public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = value switch
                     {
@@ -283,7 +287,7 @@ internal class EnumClassDeclarationTemplate
 
                 public Raw ToRaw() => ToRaw(this);
 
-                public static Raw ToRaw({{props.DeclarationName}} value)
+                public static Raw ToRaw({{props.Definition.DeclarationName}} value)
                 {
                     if (TryToRaw(value, out var result))
                         return result;
@@ -294,7 +298,7 @@ internal class EnumClassDeclarationTemplate
                     throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a declared enum class value.");
                 }
 
-                public static bool TryToRaw({{props.DeclarationName}}? value, out Raw result)
+                public static bool TryToRaw({{props.Definition.DeclarationName}}? value, out Raw result)
                 {
                     if (value?._rawValue is Raw rawValue)
                     {
@@ -306,12 +310,12 @@ internal class EnumClassDeclarationTemplate
                     return false;
                 }
 
-                public static implicit operator {{props.DeclarationName}}(Raw value) => FromRaw(value);
-                public static explicit operator Raw({{props.DeclarationName}} value) => ToRaw(value);
+                public static implicit operator {{props.Definition.DeclarationName}}(Raw value) => FromRaw(value);
+                public static explicit operator Raw({{props.Definition.DeclarationName}} value) => ToRaw(value);
                 """;
         }
 
-        static string BuildValueMatching(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+        static string BuildValueMatching(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
         {
             return $$"""
                 /// <summary>
@@ -328,7 +332,7 @@ internal class EnumClassDeclarationTemplate
                                 return;
                             """))}}
                         default:
-                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                            throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
                     }
                 }
 
@@ -363,7 +367,7 @@ internal class EnumClassDeclarationTemplate
                                 return;
                             """))}}
                         default:
-                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                            throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
                     }
                 }
 
@@ -400,7 +404,7 @@ internal class EnumClassDeclarationTemplate
                                 return on{{x.Def.NormalizedName}}();
                             """))}}
                         default:
-                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                            throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
                     }
                 }
 
@@ -435,7 +439,7 @@ internal class EnumClassDeclarationTemplate
                                 return on{{x.Def.NormalizedName}}(state);
                             """))}}
                         default:
-                            throw new System.InvalidOperationException("Invalid value of {{props.DeclarationName}}.");
+                            throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
                     }
                 }
 
@@ -458,7 +462,7 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildTypeMatchingWhenApplicable(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+        static string BuildTypeMatchingWhenApplicable(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
         {
             bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.Def.FullyQualifiedCustomType is not null);
             var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.Def.FullyQualifiedCustomType!).Where(x => x.Key is not null);
@@ -467,8 +471,8 @@ internal class EnumClassDeclarationTemplate
                 return "";
 
             return $$"""
-                public static bool TryGetOfType<TValue>({{props.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
-                    where TValue : {{props.DeclarationName}}
+                public static bool TryGetOfType<TValue>({{definition.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
+                    where TValue : {{definition.DeclarationName}}
                 {
                     var checkedType = typeof(TValue);
 
@@ -492,15 +496,15 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildNumberingHelpersWhenApplicable(EnumClass.Definition props)
+        static string BuildNumberingHelpersWhenApplicable(EnumClassCollector.Definition definition)
         {
-            if (!CheckIfNumberedByUser(props))
+            if (!CheckIfNumberedByUser(definition))
                 return "";
 
             return $$"""
                 private static System.Collections.Generic.List<int>? _usedIndexes;
 
-                private static void EnsureEnumIndexIsFree({{props.DeclarationName}} value, int index)
+                private static void EnsureEnumIndexIsFree({{definition.DeclarationName}} value, int index)
                 {
                     if (_usedIndexes is null)
                     {
@@ -518,21 +522,27 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildSerialization(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+        static string BuildSerialization(IndexedEnumValue[] enumValues, EnumClassCollector.Definition.WithConfig definition)
         {
             return $$"""
                 private string _serializedName = null!;
 
-                {{(GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary
-                    ? $"private static System.Collections.Frozen.FrozenDictionary<string, {props.DeclarationName}>? _valuesBySerializedName;"
+                {{(GetDeserializationMethod(enumValues, definition) is SearchMethod.Dictionary
+                    ? $"private static System.Collections.Frozen.FrozenDictionary<int, {definition.Definition.DeclarationName}>? _valuesBySerializedNameHash;"
                     : "")}}
 
                 public string Serialize() => _serializedName;
-                public static string Serialize({{props.DeclarationName}} value) => value.Serialize();
+                public static string Serialize({{definition.Definition.DeclarationName}} value) => value.Serialize();
                 
-                {{BuildDeserializers(enumValues, props)}}
+                {{BuildDeserializers(enumValues, definition)}}
                 
-                public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.DeclarationName}}? result)
+                public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{definition.Definition.DeclarationName}}? result)
+                {
+                    result = Deserialize(serializedValue);
+                    return result is not null;
+                }
+                
+                public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{definition.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
                     return result is not null;
@@ -540,26 +550,43 @@ internal class EnumClassDeclarationTemplate
                 
                 public static bool ContainsSerializedValue(string? serializedValue)
                     => Deserialize(serializedValue) is not null;
+                
+                public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
+                    => Deserialize(serializedValue) is not null;
                 """;
 
-            static string BuildDeserializers(IndexedEnumValue[] enumValues, EnumClass.Definition props)
+            static string BuildDeserializers(IndexedEnumValue[] enumValues, EnumClassCollector.Definition.WithConfig definition)
             {
-                if (GetDeserializationMethod(enumValues, props) is SearchMethod.Dictionary)
+                if (GetDeserializationMethod(enumValues, definition) is SearchMethod.Dictionary)
                     return $$"""
-                        public static {{props.DeclarationName}}? Deserialize(string? serializedValue)
+                        public static {{definition.Definition.DeclarationName}}? Deserialize(string? serializedValue)
                         {
                             if (serializedValue is null)
                                 return null;
-                            return (_valuesBySerializedName?.TryGetValue(serializedValue, out {{props.DeclarationName}} value) ?? false)
+
+                            return Deserialize(System.MemoryExtensions.AsSpan(serializedValue));
+                        }
+
+                        public static {{definition.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
+                        {
+                            return (_valuesBySerializedNameHash?.TryGetValue(string.GetHashCode(serializedValue), out {{definition.Definition.DeclarationName}} value) ?? false)
                                 ? value
                                 : null;
                         }
                         """;
 
                 return $$"""
-                    public static {{props.DeclarationName}}? Deserialize(string? serializedValue)
+                    public static {{definition.Definition.DeclarationName}}? Deserialize(string? serializedValue)
                     {
-                        {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (serializedValue == {enumValue.Def.Name}._serializedName) return {enumValue.Def.Name};"))}}
+                        if (serializedValue is null)
+                            return null;
+
+                        return Deserialize(System.MemoryExtensions.AsSpan(serializedValue));
+                    }
+
+                    public static {{definition.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
+                    {
+                        {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (serializedValue.Equals(System.MemoryExtensions.AsSpan({enumValue.Def.Name}._serializedName), System.StringComparison.InvariantCulture)) return {enumValue.Def.Name};"))}}
                         return null;
                     }
                     """;
@@ -567,14 +594,14 @@ internal class EnumClassDeclarationTemplate
 
         }
 
-        static bool CheckIfNumberedByUser(EnumClass.Definition props)
-            => props.OurAttributeType is EnumClass.OurAttributeType.NumberedEnumClass;
+        static bool CheckIfNumberedByUser(EnumClassCollector.Definition props)
+            => props.OurAttributeType is EnumClassCollector.OurAttributeType.NumberedEnumClass;
 
-        static SearchMethod GetDeserializationMethod(IndexedEnumValue[] enumValues, EnumClass.Definition props)
-            => SearchMethodProvider.Get(props, enumValues.Length);
+        static SearchMethod GetDeserializationMethod(IndexedEnumValue[] enumValues, EnumClassCollector.Definition.WithConfig props)
+            => SearchMethodProvider.Get(props.Configuration, enumValues.Length);
     }
 
     private record struct IndexedEnumValue(
         int DefaultIndex,
-        EnumValue.Definition Def);
+        EnumValueCollector.Definition Def);
 }

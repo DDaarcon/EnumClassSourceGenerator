@@ -23,16 +23,14 @@ namespace EnumClasses
         public bool GenerateRawEnum { get; set; } = false;
 
         /// <summary>
-        /// Specifies the method for searching/matching values. Used, among others, in deserialization. Defaults to <see cref="DefaultSearchMode"/>.
+        /// Specifies the method for searching/matching values. Used, among others, in deserialization. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultSearchMode"/>.
         /// </summary>
-        public SearchMode SearchMode { get; set; } = DefaultSearchMode;
-        public const SearchMode DefaultSearchMode = SearchMode.Optimized;
+        public SearchMode SearchMode { get; set; } = EnumClassDefaultsAttribute.DefaultSearchMode;
 
         /// <summary>
-        /// Controls the constructors restrictions. Defaults to <see cref="DefaultConstructionRestrictionMode" />.
+        /// Controls the constructors restrictions. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode" />.
         /// </summary>
-        public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; } = DefaultConstructionRestrictionMode;
-        public const ConstructionRestrictionMode DefaultConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor;
+        public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; } = EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode;
     }
 
 
@@ -41,7 +39,9 @@ namespace EnumClasses
     /// Enumerable values should be defined as either fields with `public static readonly` modifiers or properties with `public static` modifiers and only a getter (no setter).
     /// Enumerable values can be of a containing type type or one inheriting from it.
     /// </summary>
-    /// 
+    /// <remarks>
+    /// Default values for parameters can be set up by applying the <see cref="EnumClassDefaultsAttribute"/> on Assembly.
+    /// </remarks>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal sealed class EnumClassAttribute : BaseEnumClassAttribute
 #else
@@ -56,6 +56,9 @@ namespace EnumClasses
     /// Enumerable values can be of a containing type type or one inheriting from it.<br />
     /// Numbered Enum Values has to have a value provided for `EnumIndex` property.
     /// </summary>
+    /// <remarks>
+    /// Default values for parameters can be set up by applying the <see cref="EnumClassDefaultsAttribute"/> on Assembly.
+    /// </remarks>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
 #else

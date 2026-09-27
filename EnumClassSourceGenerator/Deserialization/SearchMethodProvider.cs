@@ -1,12 +1,12 @@
-﻿using EnumClasses.SourceGenerators.Schema;
+﻿using EnumClasses.SourceGenerators.Configurations;
 
 namespace EnumClasses.SourceGenerators.Deserialization;
 
 internal static class SearchMethodProvider
 {
-    public static SearchMethod Get(EnumClass.Definition props, int enumValuesCount)
+    public static SearchMethod Get(Configuration config, int enumValuesCount)
     {
-        return props.Config.SearchMode switch
+        return config.SearchMode switch
         {
             SearchMode.ForceIfChain => SearchMethod.IfChain,
             SearchMode.ForceDictionary => SearchMethod.Dictionary,

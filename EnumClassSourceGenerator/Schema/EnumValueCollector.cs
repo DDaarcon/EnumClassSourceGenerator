@@ -11,7 +11,7 @@ using System.Threading;
 
 namespace EnumClasses.SourceGenerators.Schema;
 
-internal static class EnumValue
+internal static class EnumValueCollector
 {
     internal record struct CollectResult(
         Definition[] Definitions);
