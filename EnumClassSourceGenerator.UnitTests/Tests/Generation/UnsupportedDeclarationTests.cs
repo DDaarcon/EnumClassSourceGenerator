@@ -49,6 +49,87 @@ public class UnsupportedDeclarationTests
         result.GeneratedSources.Should().NotContain(x => x.HintName == "GenericEnum.g.cs");
     }
 
+    [Fact]
+    public void When_EnumClassValueUsesEscapedReservedName_Then_ShouldReportCollisionAndSkipValue()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class EscapedIdentifierEnum
+            {
+                public static readonly EscapedIdentifierEnum @Switch = new();
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        result.Diagnostics.Should().ContainSingle(x => x.Id == "ENUMCLGEN008");
+
+        var generatedSource = result.GeneratedSources
+            .Single(x => x.HintName == "Consumer.EscapedIdentifierEnum.g.cs")
+            .SourceText
+            .ToString();
+
+        generatedSource.Should().NotContain("@Switch._serializedName");
+    }
+
+    [Fact]
+    public void When_EnumClassValueUsesEscapedKeyword_Then_ShouldPreserveEscapingInGeneratedSource()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class EscapedIdentifierEnum
+            {
+                public static readonly EscapedIdentifierEnum @class = new();
+            }
+            """;
+
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            source,
+            new CSharpParseOptions(LanguageVersion.Preview));
+
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator)
+            .Select(path => MetadataReference.CreateFromFile(path));
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "EscapedIdentifierTests",
+            syntaxTrees: [syntaxTree],
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new global::EnumClasses.SourceGenerators.EnumClassSourceGenerator().AsSourceGenerator()],
+            parseOptions: (CSharpParseOptions)syntaxTree.Options);
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var outputCompilation,
+            out var generatorDiagnostics);
+
+        generatorDiagnostics.Should().NotContain(x => x.Severity == DiagnosticSeverity.Error);
+        outputCompilation.GetDiagnostics()
+            .Where(x => x.Severity == DiagnosticSeverity.Error)
+            .Should()
+            .BeEmpty();
+
+        var generatedSource = driver.GetRunResult().Results
+            .Single()
+            .GeneratedSources
+            .Single()
+            .SourceText
+            .ToString();
+
+        generatedSource.Should().Contain("@class._serializedName = nameof(@class);");
+    }
+
     [Theory]
     [InlineData("public static InvalidAccessorEnum Value => new();")]
     [InlineData("public static InvalidAccessorEnum Value { get { return new(); } }")]

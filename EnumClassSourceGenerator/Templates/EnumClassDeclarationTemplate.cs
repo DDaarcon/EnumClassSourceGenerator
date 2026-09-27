@@ -160,7 +160,7 @@ internal class EnumClassDeclarationTemplate
                 
                     {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._internalIndex = {enumValue.InternalIndex};"))}}
                 
-                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._serializedName = nameof({enumValue.NormalizedName});"))}}
+                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._serializedName = nameof({enumValue.Name});"))}}
                 
                     {{(props.Configuration.GenerateRawEnum
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._rawValue = Raw.{enumValue.Name};"))
