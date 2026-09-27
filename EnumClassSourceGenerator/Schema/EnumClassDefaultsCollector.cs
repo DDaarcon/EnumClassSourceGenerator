@@ -1,9 +1,7 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
 using EnumClasses.SourceGenerators.Schema.Help;
 using Microsoft.CodeAnalysis;
-using System;
 using System.Linq;
-using System.Threading;
 
 namespace EnumClasses.SourceGenerators.Schema;
 

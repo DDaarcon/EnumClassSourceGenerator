@@ -9,7 +9,7 @@ internal static class FullyQualifiedNamesComparer
         var name1Prefixless = GetPrefixless(name1);
         var name2Prefixless = GetPrefixless(name2);
 
-        return name1Prefixless.Equals(name2Prefixless, StringComparison.InvariantCulture);
+        return name1Prefixless.Equals(name2Prefixless, StringComparison.Ordinal);
 
         static ReadOnlySpan<char> GetPrefixless(ReadOnlySpan<char> name)
             => name.StartsWith(_globalPrefix)

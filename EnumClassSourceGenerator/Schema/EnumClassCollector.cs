@@ -20,7 +20,10 @@ internal static class EnumClassCollector
         string? NamespaceName = null,
         string? Modifier = null,
         bool HasExplicitInstanceConstructor = false,
-        EnumValueCollector.CollectResult? EnumValues = null,
+        EnumValueCollector.CollectResult EnumValues = default,
+        Definition.Metadata Meta = default,
+        bool IsAlternateLookupSupported = false,
+
         IEnumerable<Diagnostic>? DiagnosticReports = null)
     {
         public readonly string FullyQualifiedName => $"{NamespaceName}.{DeclarationName}";
@@ -33,10 +36,14 @@ internal static class EnumClassCollector
             InvalidValues
         }
 
+        public record struct Metadata(
+            bool IsAlternateLookupSupported);
+
         public record struct WithConfig(
             Definition Definition,
             ConfigurationOverrides ConfigurationOverrides,
             Configuration Configuration);
+
     }
 
 
@@ -80,6 +87,7 @@ internal static class EnumClassCollector
             : explicitInstanceConstructors
                 .Where(constructor => constructor.DeclaredAccessibility is not (Accessibility.Private or Accessibility.Protected));
 
+        var metadata = CollectMetadata(semanticModel);
 
         var reports = new List<Diagnostic>();
 
@@ -119,6 +127,7 @@ internal static class EnumClassCollector
                     NamespaceName: namespaceName,
                     Modifier: accessModifiers.FirstOrDefault().Text,
                     HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
+                    Meta: metadata,
                     DiagnosticReports: reports),
                 instanceConfig,
                 config
@@ -141,6 +150,7 @@ internal static class EnumClassCollector
                 Modifier: accessModifiers.First().Text,
                 HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
                 EnumValues: enumValuesCollectionResult,
+                Meta: metadata,
                 DiagnosticReports: enumValuesDiagnosticReports),
             instanceConfig,
             config
@@ -180,4 +190,45 @@ internal static class EnumClassCollector
 
     private static Configuration CollectDefaultConfiguration(IAssemblySymbol assembly)
         => EnumClassDefaultsCollector.Collect(assembly);
+
+
+
+    private static Definition.Metadata CollectMetadata(SemanticModel semanticModel)
+    {
+        var compilation = semanticModel.Compilation;
+        var parseOptions = (CSharpParseOptions) semanticModel.SyntaxTree.Options;
+
+        return new Definition.Metadata(
+            IsAlternateLookupSupported: CheckIfSupportsAlternateLookup(compilation, parseOptions));
+    }
+
+    /// <summary>
+    /// .NET 9+
+    /// </summary>
+    private static bool CheckIfSupportsAlternateLookup(
+        Compilation compilation,
+        CSharpParseOptions parseOptions)
+    {
+        if (parseOptions.LanguageVersion < LanguageVersion.CSharp13)
+            return false;
+
+        var alternateComparer = compilation.GetTypeByMetadataName(
+            "System.Collections.Generic.IAlternateEqualityComparer`2");
+
+        if (alternateComparer is null)
+            return false;
+
+        var frozenDictionary = compilation.GetTypeByMetadataName(
+            "System.Collections.Frozen.FrozenDictionary`2");
+
+        if (frozenDictionary is null)
+            return false;
+
+        return frozenDictionary
+            .GetMembers("GetAlternateLookup")
+            .OfType<IMethodSymbol>()
+            .Any(method =>
+                method.Arity == 1 &&
+                method.Parameters.Length == 0);
+    }
 }

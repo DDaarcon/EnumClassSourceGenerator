@@ -41,5 +41,6 @@ namespace EnumClasses
         /// </summary>
         public bool RequireIndexAssignmentInInitializer { get; set; } = DefaultRequireIndexAssignmentInInitializer;
         public const bool DefaultRequireIndexAssignmentInInitializer = true;
+
     }
 }
