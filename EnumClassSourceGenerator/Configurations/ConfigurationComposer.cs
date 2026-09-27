@@ -10,7 +10,7 @@ internal static class ConfigurationComposer
         => new(
             instance.GenerateJsonConverter ?? defaults.GenerateJsonConverter,
             instance.GenerateRawEnum ?? defaults.GenerateRawEnum,
-            instance.SearchMode ?? defaults.SearchMode,
+            instance.LookupMode ?? defaults.LookupMode,
             instance.ConstructionRestrictionMode ?? defaults.ConstructionRestrictionMode,
             instance.RequireIndexAssignmentInInitializer ?? defaults.RequireIndexAssignmentInInitializer);
 }

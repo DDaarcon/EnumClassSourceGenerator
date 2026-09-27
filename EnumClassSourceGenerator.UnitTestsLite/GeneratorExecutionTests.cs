@@ -4,6 +4,9 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace EnumClassSourceGenerator.UnitTestsLite;
 
+/// <summary>
+/// For simple and quick execution of source generation.
+/// </summary>
 public class GeneratorExecutionTests
 {
     [Fact]

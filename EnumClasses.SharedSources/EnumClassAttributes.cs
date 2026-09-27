@@ -23,9 +23,9 @@ namespace EnumClasses
         public bool GenerateRawEnum { get; set; } = false;
 
         /// <summary>
-        /// Specifies the method for searching/matching values. Used, among others, in deserialization. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultSearchMode"/>.
+        /// Specifies how generated lookup code is selected. Used, among others, in deserialization. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultLookupMode"/>.
         /// </summary>
-        public SearchMode SearchMode { get; set; } = EnumClassDefaultsAttribute.DefaultSearchMode;
+        public LookupMode LookupMode { get; set; } = EnumClassDefaultsAttribute.DefaultLookupMode;
 
         /// <summary>
         /// Controls the constructors restrictions. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode" />.

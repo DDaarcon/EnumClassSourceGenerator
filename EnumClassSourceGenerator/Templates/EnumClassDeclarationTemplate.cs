@@ -183,7 +183,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildSerializationDictionaryAssignmentWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (GetSearchMethodForStringKeys(enumValues, props) is not SearchMethod.Dictionary)
+                if (GetLookupImplementationForStringKeys(enumValues, props) is not LookupImplementation.Dictionary)
                     return "";
 
                 var dictAssignment = $"""
@@ -603,7 +603,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildDictionaryDeclaration(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (GetSearchMethodForStringKeys(enumValues, props) is not SearchMethod.Dictionary)
+                if (GetLookupImplementationForStringKeys(enumValues, props) is not LookupImplementation.Dictionary)
                     return "";
 
                 var dictAssignment = $"""
@@ -621,7 +621,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildDeserializers(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (GetSearchMethodForStringKeys(enumValues, props) is SearchMethod.Dictionary)
+                if (GetLookupImplementationForStringKeys(enumValues, props) is LookupImplementation.Dictionary)
                     return BuildDictionaryBasedDeserialization(enumValues, props);
 
                 return BuildIfChainBasedDeserialization(enumValues, props);
@@ -690,7 +690,7 @@ internal class EnumClassDeclarationTemplate
 
 
         static bool CheckIfShouldIncludeUtf8EncodedResources(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => GetSearchMethodForUtf8Keys(enumValues, props) is SearchMethod.Dictionary
+            => GetLookupImplementationForUtf8Keys(enumValues, props) is LookupImplementation.Dictionary
                 && props.Configuration.GenerateJsonConverter
                 && props.Definition.Meta.IsAlternateLookupSupported;
 
@@ -750,11 +750,11 @@ internal class EnumClassDeclarationTemplate
         static bool CheckIfNumberedByUser(EnumClassCollector.Definition definition)
             => definition.OurAttributeType is EnumClassCollector.OurAttributeType.NumberedEnumClass;
 
-        static SearchMethod GetSearchMethodForStringKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.StringKeys);
+        static LookupImplementation GetLookupImplementationForStringKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.StringKeys);
 
-        static SearchMethod GetSearchMethodForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
+        static LookupImplementation GetLookupImplementationForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.Utf8Keys);
     }
 
 

@@ -15,7 +15,7 @@ public class EnumClassDefaultsAttributeTests
             [assembly: EnumClassDefaults(
                 GenerateJsonConverter = false,
                 GenerateRawEnum = true,
-                SearchMode = SearchMode.ForceDictionary,
+                LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.WithPrivateDefaultConstructor,
                 RequireIndexAssignmentInInitializer = false)]
 
@@ -64,7 +64,7 @@ public class EnumClassDefaultsAttributeTests
             [assembly: EnumClassDefaults(
                 GenerateJsonConverter = false,
                 GenerateRawEnum = true,
-                SearchMode = SearchMode.ForceIfChain,
+                LookupMode = LookupMode.ForceIfChain,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.WithPrivateDefaultConstructor,
                 RequireIndexAssignmentInInitializer = false)]
 
@@ -73,7 +73,7 @@ public class EnumClassDefaultsAttributeTests
             [NumberedEnumClass(
                 GenerateJsonConverter = true,
                 GenerateRawEnum = false,
-                SearchMode = SearchMode.ForceDictionary,
+                LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.Off,
                 RequireIndexAssignmentInInitializer = true)]
             internal partial class LocallyConfiguredEnum

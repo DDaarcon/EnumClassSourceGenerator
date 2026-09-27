@@ -3,7 +3,7 @@
 internal record struct Configuration(
     bool GenerateJsonConverter,
     bool GenerateRawEnum,
-    SearchMode SearchMode,
+    LookupMode LookupMode,
     ConstructionRestrictionMode ConstructionRestrictionMode,
     bool RequireIndexAssignmentInInitializer);
 
@@ -11,6 +11,6 @@ internal record struct Configuration(
 internal record struct ConfigurationOverrides(
     bool? GenerateJsonConverter,
     bool? GenerateRawEnum,
-    SearchMode? SearchMode,
+    LookupMode? LookupMode,
     ConstructionRestrictionMode? ConstructionRestrictionMode,
     bool? RequireIndexAssignmentInInitializer);

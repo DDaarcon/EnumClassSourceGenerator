@@ -2,7 +2,7 @@ using EnumClasses;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 
-[EnumClass(GenerateRawEnum = true, ConstructionRestrictionMode = ConstructionRestrictionMode.Off, SearchMode = SearchMode.ForceDictionary)]
+[EnumClass(GenerateRawEnum = true, ConstructionRestrictionMode = ConstructionRestrictionMode.Off, LookupMode = LookupMode.ForceDictionary)]
 internal partial class RawEnum
 {
     public static readonly RawEnum One = new();

@@ -45,10 +45,10 @@ internal class EnumClassSerializationConverterTemplate
 
         static string BuildReadingLogic(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
-            return GetSearchMethodForUtf8Keys(enumValues, props) switch
+            return GetLookupImplementationForUtf8Keys(enumValues, props) switch
             {
-                SearchMethod.Dictionary => BuildDictionaryLogic(enumValues, props),
-                SearchMethod.IfChain or _ => BuildIfChainLogic(enumValues, props),
+                LookupImplementation.Dictionary => BuildDictionaryLogic(enumValues, props),
+                LookupImplementation.IfChain or _ => BuildIfChainLogic(enumValues, props),
             };
 
 
@@ -102,7 +102,7 @@ internal class EnumClassSerializationConverterTemplate
 
         static string BuildUtf8JsonReadingHelpWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
-            if (GetSearchMethodForUtf8Keys(enumValues, props) is not SearchMethod.Dictionary
+            if (GetLookupImplementationForUtf8Keys(enumValues, props) is not LookupImplementation.Dictionary
                 || !props.Definition.Meta.IsAlternateLookupSupported)
             {
                 return "";
@@ -185,7 +185,7 @@ internal class EnumClassSerializationConverterTemplate
 
 
 
-        static SearchMethod GetSearchMethodForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
+        static LookupImplementation GetLookupImplementationForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.Utf8Keys);
     }
 }

@@ -1,15 +1,15 @@
 ﻿namespace EnumClasses
 {
 #if ENUMCLASSES_SOURCE_GENERATOR
-    internal enum SearchMode
+    internal enum LookupMode
 #else
-    public enum SearchMode
+    public enum LookupMode
 #endif
     {
         /// <summary>
-        /// The matching method is decided based on the amount of values.
+        /// The lookup implementation is selected automatically.
         /// </summary>
-        Optimized = 0,
+        Automatic = 0,
         /// <summary>
         /// Forces matching with if chain.
         /// </summary>

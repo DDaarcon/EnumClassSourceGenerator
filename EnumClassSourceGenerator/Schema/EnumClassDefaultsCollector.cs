@@ -12,7 +12,7 @@ internal static class EnumClassDefaultsCollector
         var defaultValues = new Configuration(
             EnumClassDefaultsAttribute.DefaultGenerateJsonConverter,
             EnumClassDefaultsAttribute.DefaultGenerateRawEnum,
-            EnumClassDefaultsAttribute.DefaultSearchMode,
+            EnumClassDefaultsAttribute.DefaultLookupMode,
             EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode,
             EnumClassDefaultsAttribute.DefaultRequireIndexAssignmentInInitializer);
 
@@ -34,7 +34,7 @@ internal static class EnumClassDefaultsCollector
         {
             GenerateJsonConverter = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter)),
             GenerateRawEnum = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
-            SearchMode = defaultsAttribute.NamedArguments.GetEnumProperty<SearchMode>(nameof(EnumClassAttribute.SearchMode)),
+            LookupMode = defaultsAttribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
             ConstructionRestrictionMode = defaultsAttribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
             RequireIndexAssignmentInInitializer = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(NumberedEnumClassAttribute.RequireIndexAssignmentInInitializer)),
         };

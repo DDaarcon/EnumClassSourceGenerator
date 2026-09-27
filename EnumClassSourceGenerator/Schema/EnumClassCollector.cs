@@ -182,7 +182,7 @@ internal static class EnumClassCollector
         {
             GenerateJsonConverter = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter)),
             GenerateRawEnum = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
-            SearchMode = attribute.NamedArguments.GetEnumProperty<SearchMode>(nameof(EnumClassAttribute.SearchMode)),
+            LookupMode = attribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
             ConstructionRestrictionMode = attribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
             RequireIndexAssignmentInInitializer = attribute.NamedArguments.GetBooleanProperty(nameof(NumberedEnumClassAttribute.RequireIndexAssignmentInInitializer)),
         };

@@ -22,10 +22,10 @@ namespace EnumClasses
         public const bool DefaultGenerateRawEnum = false;
 
         /// <summary>
-        /// Specifies the method for searching/matching values. Used, among others, in deserialization. Defaults to <see cref="DefaultSearchMode"/>.
+        /// Specifies how generated lookup code is selected. Used, among others, in deserialization. Defaults to <see cref="DefaultLookupMode"/>.
         /// </summary>
-        public SearchMode SearchMode { get; set; } = DefaultSearchMode;
-        public const SearchMode DefaultSearchMode = SearchMode.Optimized;
+        public LookupMode LookupMode { get; set; } = DefaultLookupMode;
+        public const LookupMode DefaultLookupMode = LookupMode.Automatic;
 
         /// <summary>
         /// Controls the constructors restrictions. Defaults to <see cref="DefaultConstructionRestrictionMode" />.
