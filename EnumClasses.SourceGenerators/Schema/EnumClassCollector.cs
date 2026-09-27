@@ -134,7 +134,40 @@ internal static class EnumClassCollector
             );
         }
 
-        var enumValuesCollectionResult = EnumValueCollector.CollectDefinitions(component, semanticModel, token);
+        var declarationsWithValues = typeSymbol.DeclaringSyntaxReferences
+            .Select(reference => reference.GetSyntax(token))
+            .OfType<ClassDeclarationSyntax>()
+            .Select(declaration =>
+            {
+                var declarationSemanticModel = semanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
+                return EnumValueCollector.CollectDefinitions(declaration, declarationSemanticModel, token);
+            })
+            .Where(result => result.Definitions.Length > 0)
+            .ToArray();
+
+        if (declarationsWithValues.Length > 1)
+        {
+            reports.Add(Diagnostics.ValuesDeclaredInMultiplePartialDeclarations(declarationLocation, declarationName));
+
+            return new(
+                new Definition(
+                    Status: Definition.StatusCode.InvalidClassDeclaration,
+                    OurAttributeType: attribute.Type,
+                    Location: declarationLocation,
+                    DeclarationName: declarationName,
+                    NamespaceName: namespaceName,
+                    Modifier: accessModifiers.First().Text,
+                    HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
+                    Meta: metadata,
+                    DiagnosticReports: reports),
+                instanceConfig,
+                config
+            );
+        }
+
+        var enumValuesCollectionResult = declarationsWithValues.Length == 0
+            ? new EnumValueCollector.CollectResult([])
+            : declarationsWithValues[0];
 
         var enumValuesDiagnosticReports = enumValuesCollectionResult.Definitions.SelectMany(x => x.DiagnosticReports).ToArray();
 

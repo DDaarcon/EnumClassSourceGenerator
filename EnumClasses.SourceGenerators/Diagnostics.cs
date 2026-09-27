@@ -123,5 +123,16 @@ internal static class Diagnostics
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
-        public const string Category = "EnumClassGenerator";
+    public static Diagnostic ValuesDeclaredInMultiplePartialDeclarations(Location? declarationLocation, string declarationName)
+        => Diagnostic.Create(ValuesDeclaredInMultiplePartialDeclarationsDescriptor, declarationLocation, declarationName);
+    public static readonly DiagnosticDescriptor ValuesDeclaredInMultiplePartialDeclarationsDescriptor =
+        new(
+            id: "ENUMCLGEN011",
+            title: "Enum Class values must be declared in one partial declaration",
+            messageFormat: "Enum Class '{0}' declares values in multiple partial declarations; move all values into a single declaration",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public const string Category = "EnumClassGenerator";
 }

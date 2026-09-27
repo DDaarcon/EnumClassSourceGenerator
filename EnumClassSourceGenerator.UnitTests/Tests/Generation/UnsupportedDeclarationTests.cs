@@ -231,27 +231,161 @@ public class UnsupportedDeclarationTests
         generatedSource.Should().NotContain("Broken._serializedName");
     }
 
-    private static GeneratorRunResult RunGenerator(string source)
+    [Fact]
+    public void When_ValuesAreDeclaredInMultiplePartialDeclarations_Then_ShouldRejectEntireEnumClass()
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(
-            source,
-            new CSharpParseOptions(LanguageVersion.Preview));
+        const string attributedPart = """
+            using EnumClasses;
 
-        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
-            .Split(Path.PathSeparator)
-            .Select(path => MetadataReference.CreateFromFile(path));
+            namespace Consumer;
 
-        var compilation = CSharpCompilation.Create(
-            assemblyName: "GeneratorTests",
-            syntaxTrees: [syntaxTree],
-            references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            [EnumClass]
+            internal partial class SplitEnum
+            {
+                public static SplitEnum One { get; } = new();
+            }
+            """;
+        const string otherPart = """
+            namespace Consumer;
+
+            internal partial class SplitEnum
+            {
+                public static SplitEnum Two { get; } = new();
+            }
+            """;
+
+        var result = RunGenerator(attributedPart, otherPart);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN011")
+            .Subject;
+
+        diagnostic.GetMessage().Should().Contain("'SplitEnum'");
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnum.g.cs");
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnumJsonConverter.g.cs");
+    }
+
+    [Fact]
+    public void When_OnlyOnePartialDeclarationContainsValues_Then_ShouldUseItsValues()
+    {
+        const string attributedPart = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class SplitEnum
+            {
+                private static string Helper() => "helper";
+            }
+            """;
+        const string valuesPart = """
+            namespace Consumer;
+
+            internal partial class SplitEnum
+            {
+                public static SplitEnum One { get; } = new();
+                public static readonly SplitEnum Two = new();
+            }
+            """;
+
+        var result = RunGenerator(attributedPart, valuesPart);
+
+        result.Diagnostics.Should().NotContain(x => x.Severity == DiagnosticSeverity.Error);
+
+        var generatedSource = result.GeneratedSources
+            .Single(x => x.HintName == "Consumer.SplitEnum.g.cs")
+            .SourceText
+            .ToString();
+
+        generatedSource.Should().Contain("One._serializedName");
+        generatedSource.Should().Contain("Two._serializedName");
+    }
+
+    [Fact]
+    public void When_MultipleValueDeclarationsAreFixed_Then_ShouldGenerateAgain()
+    {
+        const string attributedPart = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class SplitEnum
+            {
+                public static SplitEnum One { get; } = new();
+            }
+            """;
+        const string invalidOtherPart = """
+            namespace Consumer;
+
+            internal partial class SplitEnum
+            {
+                public static SplitEnum Two { get; } = new();
+            }
+            """;
+        const string fixedOtherPart = """
+            namespace Consumer;
+
+            internal partial class SplitEnum
+            {
+                private static string Helper() => "helper";
+            }
+            """;
+
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var initialTrees = new[]
+        {
+            CSharpSyntaxTree.ParseText(attributedPart, parseOptions, path: "SplitEnum.cs"),
+            CSharpSyntaxTree.ParseText(invalidOtherPart, parseOptions, path: "SplitEnum.Values.cs")
+        };
+        var compilation = CreateCompilation(initialTrees);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [new global::EnumClasses.SourceGenerators.EnumClassSourceGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
+
+        driver = driver.RunGenerators(compilation);
+        var invalidResult = driver.GetRunResult().Results.Single();
+        invalidResult.Diagnostics.Should().ContainSingle(x => x.Id == "ENUMCLGEN011");
+        invalidResult.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnum.g.cs");
+
+        var fixedTree = CSharpSyntaxTree.ParseText(fixedOtherPart, parseOptions, path: "SplitEnum.Values.cs");
+        compilation = compilation.ReplaceSyntaxTree(initialTrees[1], fixedTree);
+        driver = driver.RunGenerators(compilation);
+        var fixedResult = driver.GetRunResult().Results.Single();
+
+        fixedResult.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN011");
+        fixedResult.GeneratedSources.Should().Contain(x => x.HintName == "Consumer.SplitEnum.g.cs");
+    }
+
+    private static GeneratorRunResult RunGenerator(params string[] sources)
+    {
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var syntaxTrees = sources
+            .Select((source, index) => CSharpSyntaxTree.ParseText(source, parseOptions, path: $"Source{index}.cs"))
+            .ToArray();
+
+        var compilation = CreateCompilation(syntaxTrees);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            new global::EnumClasses.SourceGenerators.EnumClassSourceGenerator().AsSourceGenerator());
+            generators: [new global::EnumClasses.SourceGenerators.EnumClassSourceGenerator().AsSourceGenerator()],
+            parseOptions: parseOptions);
 
         driver = driver.RunGenerators(compilation);
 
         return driver.GetRunResult().Results.Single();
+    }
+
+    private static CSharpCompilation CreateCompilation(IEnumerable<SyntaxTree> syntaxTrees)
+    {
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+            .Split(Path.PathSeparator)
+            .Select(path => MetadataReference.CreateFromFile(path));
+
+        return CSharpCompilation.Create(
+            assemblyName: "GeneratorTests",
+            syntaxTrees: syntaxTrees,
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 }
