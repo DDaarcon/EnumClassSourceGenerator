@@ -82,7 +82,8 @@ internal static class EnumValueCollector
 
                 var reports = new List<Diagnostic>();
 
-                var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name);
+                var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name)
+                    && !EnumClassDeclarationTemplate.CheckIfNameIsReserved(normalizedName);
                 if (!isNameNotReserved)
                     reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
 
@@ -168,9 +169,13 @@ internal static class EnumValueCollector
 
                     var reports = new List<Diagnostic>();
 
-                    var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name);
+                    var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name)
+                        && !EnumClassDeclarationTemplate.CheckIfNameIsReserved(normalizedName);
                     if (!isNameNotReserved)
                         reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
+
+                    if (variable.Initializer is null)
+                        reports.Add(Diagnostics.UninitializedEnumValueField(location, name, declarationName));
 
                     var isOfMainType = SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol);
 

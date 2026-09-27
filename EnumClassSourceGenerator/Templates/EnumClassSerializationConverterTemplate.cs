@@ -186,6 +186,6 @@ internal class EnumClassSerializationConverterTemplate
 
 
         static SearchMethod GetSearchMethodForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props.Configuration, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
+            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
     }
 }

@@ -82,7 +82,7 @@ internal class EnumClassDeclarationTemplate
 
             
                     private static System.Collections.Immutable.ImmutableArray<{{definition.DeclarationName}}> _allValues;
-                    public static System.Collections.Generic.IReadOnlyList<{{definition.DeclarationName}}> AllValues => _allValues;
+                    public static System.Collections.Immutable.ImmutableArray<{{definition.DeclarationName}}> AllValues => _allValues;
 
                     private int _internalIndex;
             
@@ -635,7 +635,7 @@ internal class EnumClassDeclarationTemplate
                             if (serializedValue is null)
                                 return null;
 
-                            return (_valuesBySerializedName?.TryGetValue(serializedValue, out {{props.Definition.DeclarationName}} value) ?? false)
+                            return (_valuesBySerializedName?.TryGetValue(serializedValue, out {{props.Definition.DeclarationName}}? value) ?? false)
                                 ? value
                                 : null;
                         }
@@ -651,14 +651,14 @@ internal class EnumClassDeclarationTemplate
                         if (props.Definition.Meta.IsAlternateLookupSupported)
                         {
                             return $$"""
-                                return _valuesBySerializedNameSpanLookup.TryGetValue(serializedValue, out {{props.Definition.DeclarationName}} value)
+                                return _valuesBySerializedNameSpanLookup.TryGetValue(serializedValue, out {{props.Definition.DeclarationName}}? value)
                                     ? value
                                     : null;
                                 """;
                         }
 
                         return $$"""
-                            return (_valuesBySerializedName?.TryGetValue(serializedValue.ToString(), out {{props.Definition.DeclarationName}} value) ?? false)
+                            return (_valuesBySerializedName?.TryGetValue(serializedValue.ToString(), out {{props.Definition.DeclarationName}}? value) ?? false)
                                 ? value
                                 : null;
                             """;
@@ -751,10 +751,10 @@ internal class EnumClassDeclarationTemplate
             => definition.OurAttributeType is EnumClassCollector.OurAttributeType.NumberedEnumClass;
 
         static SearchMethod GetSearchMethodForStringKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props.Configuration, enumValues.Length, SearchMethodProvider.Target.StringKeys);
+            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.StringKeys);
 
         static SearchMethod GetSearchMethodForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => SearchMethodProvider.Get(props.Configuration, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
+            => SearchMethodProvider.Get(props, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
     }
 
 

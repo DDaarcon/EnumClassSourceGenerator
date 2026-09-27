@@ -1,4 +1,5 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.Schema;
 using System;
 
 namespace EnumClasses.SourceGenerators.Deserialization;
@@ -11,20 +12,23 @@ internal static class SearchMethodProvider
         Utf8Keys
     }
 
-    public static SearchMethod Get(Configuration config, int enumValuesCount, Target target)
+    public static SearchMethod Get(EnumClassCollector.Definition.WithConfig props, int enumValuesCount, Target target)
     {
-        return config.SearchMode switch
+        return props.Configuration.SearchMode switch
         {
             SearchMode.ForceIfChain => SearchMethod.IfChain,
             SearchMode.ForceDictionary => SearchMethod.Dictionary,
-            SearchMode.Optimized or _ => GetOptimizedMethod(enumValuesCount, target)
+            SearchMode.Optimized or _ => GetOptimizedMethod(props, enumValuesCount, target)
         };
     }
 
     private const int _dictAdvThresholdForString = 8;
     private const int _dictAdvThresholdForUtf8 = 16;
-    private static SearchMethod GetOptimizedMethod(int enumValuesCount, Target target)
+    private static SearchMethod GetOptimizedMethod(EnumClassCollector.Definition.WithConfig props, int enumValuesCount, Target target)
     {
+        if (!props.Definition.Meta.IsAlternateLookupSupported)
+            return SearchMethod.IfChain; // TODO .NET 8 is outside of the scope of Alternalte lookups, a different solution is needed to replace if's on a large number of values
+
         int limit = target switch
         {
             Target.StringKeys => _dictAdvThresholdForString,

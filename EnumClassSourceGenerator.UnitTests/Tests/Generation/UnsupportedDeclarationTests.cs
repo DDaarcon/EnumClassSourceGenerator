@@ -168,6 +168,69 @@ public class UnsupportedDeclarationTests
         result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN005");
     }
 
+    [Fact]
+    public void When_EnumClassValueFieldIsUninitialized_Then_ShouldReportDedicatedDiagnosticAndSkipValue()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class UninitializedFieldEnum
+            {
+                public static readonly UninitializedFieldEnum Broken;
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN010")
+            .Subject;
+
+        diagnostic.GetMessage().Should().Contain("'Broken'");
+        diagnostic.GetMessage().Should().Contain("'UninitializedFieldEnum'");
+
+        var generatedSource = result.GeneratedSources
+            .Single(x => x.HintName == "Consumer.UninitializedFieldEnum.g.cs")
+            .SourceText
+            .ToString();
+
+        generatedSource.Should().NotContain("Broken._serializedName");
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN005");
+    }
+
+    [Fact]
+    public void When_FieldDeclarationMixesInitializedAndUninitializedValues_Then_ShouldRejectOnlyUninitializedValue()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class MixedFieldEnum
+            {
+                public static readonly MixedFieldEnum Initialized = new(), Broken;
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN010")
+            .Which.GetMessage().Should().Contain("'Broken'");
+
+        var generatedSource = result.GeneratedSources
+            .Single(x => x.HintName == "Consumer.MixedFieldEnum.g.cs")
+            .SourceText
+            .ToString();
+
+        generatedSource.Should().Contain("Initialized._serializedName");
+        generatedSource.Should().NotContain("Broken._serializedName");
+    }
+
     private static GeneratorRunResult RunGenerator(string source)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(

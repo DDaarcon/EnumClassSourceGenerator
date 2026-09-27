@@ -111,5 +111,17 @@ internal static class Diagnostics
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+
+    public static Diagnostic UninitializedEnumValueField(Location? valueLocation, string valueName, string declarationName)
+        => Diagnostic.Create(UninitializedEnumValueFieldDescriptor, valueLocation, valueName, declarationName);
+    public static readonly DiagnosticDescriptor UninitializedEnumValueFieldDescriptor =
+        new(
+            id: "ENUMCLGEN010",
+            title: "Enum Class value fields must be initialized",
+            messageFormat: "Enum Class value field '{0}' on '{1}' must have an initializer",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         public const string Category = "EnumClassGenerator";
 }
