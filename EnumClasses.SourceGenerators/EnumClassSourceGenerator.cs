@@ -14,7 +14,6 @@ namespace EnumClasses.SourceGenerators
 {
     /*
      * TODO: 
-     * Nonenumerable value attribute - to ignore static props and fields that would normally be considered an enum value
      * For Numbered Enum Class verify whether assigned EnumIndex values are free - upgrade to compile-time validation
      * 
      */
@@ -46,7 +45,7 @@ namespace EnumClasses.SourceGenerators
             if (!node.IsKind(SyntaxKind.ClassDeclaration))
                 return false;
 
-            if (node is not ClassDeclarationSyntax classNode)
+            if (node is not ClassDeclarationSyntax)
                 return false;
 
             return true;

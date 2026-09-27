@@ -1,4 +1,4 @@
-﻿using EnumClasses.SourceGenerators.Deserialization;
+﻿using EnumClasses.SourceGenerators.GenerationStrategies;
 using System.Linq;
 using EnumClassProps = EnumClasses.SourceGenerators.Schema.EnumClassCollector.Definition.WithConfig;
 using EnumValueDefinition = EnumClasses.SourceGenerators.Schema.EnumValueCollector.Definition;

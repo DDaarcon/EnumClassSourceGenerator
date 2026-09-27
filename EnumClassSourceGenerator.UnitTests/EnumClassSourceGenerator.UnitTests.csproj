@@ -17,8 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EnumClasses.Abstrations\EnumClasses.Abstractions.csproj" />
-    <ProjectReference Include="..\EnumClassSourceGenerator\EnumClasses.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\EnumClasses.Abstractions\EnumClasses.Abstractions.csproj" />
+    <ProjectReference Include="..\EnumClasses.SourceGenerators\EnumClasses.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>

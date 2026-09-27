@@ -1,4 +1,4 @@
-﻿using EnumClasses.SourceGenerators.Deserialization;
+﻿using EnumClasses.SourceGenerators.GenerationStrategies;
 using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;

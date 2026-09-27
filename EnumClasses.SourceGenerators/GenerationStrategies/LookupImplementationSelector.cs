@@ -1,7 +1,7 @@
 ﻿using EnumClasses.SourceGenerators.Schema;
 using System;
 
-namespace EnumClasses.SourceGenerators.Deserialization;
+namespace EnumClasses.SourceGenerators.GenerationStrategies;
 
 internal static class LookupImplementationSelector
 {
