@@ -166,7 +166,7 @@ internal class EnumClassDeclarationTemplate
                 static {{props.Definition.DeclarationName}}()
                 {
                     {{(!CheckIfNumberedByUser(props.Definition)
-                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}.EnumIndex = {enumValue.InternalIndex};"))
+                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}.EnumIndex = {enumValue.ResolvedIndex};"))
                         : "")}}
                 
                     {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._internalIndex = {enumValue.InternalIndex};"))}}
@@ -329,7 +329,7 @@ internal class EnumClassDeclarationTemplate
                     return $$"""
                         return index switch
                         {
-                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.InternalIndex} => {enumValue.Name},"))}}
+                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.ResolvedIndex} => {enumValue.Name},"))}}
                             _ => null
                         };
                         """;
@@ -351,7 +351,7 @@ internal class EnumClassDeclarationTemplate
                 /// <remarks>Members receive zero-based numeric values in source declaration order.</remarks>
                 public enum Raw
                 {
-                    {{String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name))}}
+                    {{BuildRawEnumDefinition(enumValues, props.Definition)}}
                 }
 
                 /// <summary>
@@ -444,6 +444,14 @@ internal class EnumClassDeclarationTemplate
                 /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="value"/> is not a declared enum-class value.</exception>
                 public static explicit operator Raw({{props.Definition.DeclarationName}} value) => ToRaw(value);
                 """;
+
+            static string BuildRawEnumDefinition(EnumValueDefinition[] enumValues, EnumClassCollector.Definition definition)
+            {
+                if (CheckIfNumberedByUser(definition))
+                    return String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name));
+
+                return String.Join(Consts.CommaNl, enumValues.Select(enumValue => $"{enumValue.Name} = {enumValue.ResolvedIndex}"));
+            }
         }
 
         static string BuildValueMatching(EnumValueDefinition[] enumValues, EnumClassCollector.Definition definition)

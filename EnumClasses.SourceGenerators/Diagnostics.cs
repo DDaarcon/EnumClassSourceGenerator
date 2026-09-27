@@ -134,5 +134,16 @@ internal static class Diagnostics
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+    public static Diagnostic CollidingEnumIndexes(Location? valueLocation, string declarationName, string valueName, string collidingValuesList)
+        => Diagnostic.Create(CollidingEnumIndexesDescriptor, valueLocation, declarationName, valueName, collidingValuesList);
+    public static readonly DiagnosticDescriptor CollidingEnumIndexesDescriptor =
+        new(
+            id: "ENUMCLGEN012",
+            title: "Enum Class values' indexes must be unique",
+            messageFormat: "Enum Class '{0}' value '{1}' has the same index as '{2}'",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
     public const string Category = "EnumClassGenerator";
 }

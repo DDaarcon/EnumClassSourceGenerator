@@ -16,19 +16,27 @@ internal static class EnumValueCollector
     internal record struct CollectResult(
         Definition[] Definitions);
 
+
+
     /// <summary>Describes a candidate enum-class value found in the target declaration.</summary>
     /// <param name="InternalIndex">The zero-based position in source declaration order.</param>
+    /// <param name="ResolvedIndex">Index value resolved either from increment by 1 or from value provided by the user</param>
+    /// <param name="ExplicitIndex">Index value provided by the user using from a compile-time constants</param>
     /// <param name="Name">The identifier as written in source.</param>
     /// <param name="NormalizedName">The identifier without contextual escaping, such as a leading <c>@</c>.</param>
     /// <param name="Location">The source location of the declaration.</param>
     /// <param name="FullyQualifiedCustomType">The fully qualified derived type, or <see langword="null"/> for the enum-class type itself.</param>
+    /// <param name="IsEnumClassValueAttributeShared">Whether the attribute is applied to a field declaration containing multiple comma-separated values.</param>
     /// <param name="DiagnosticReports">Diagnostics associated with the candidate.</param>
     internal record struct Definition(
         int InternalIndex,
+        int? ResolvedIndex,
+        int? ExplicitIndex,
         string Name,
         string NormalizedName,
         Location Location,
         string? FullyQualifiedCustomType,
+        bool IsEnumClassValueAttributeShared,
         IEnumerable<Diagnostic>? DiagnosticReports)
     {
         public readonly bool IsValid => DiagnosticReports is null || !DiagnosticReports.Any();
@@ -42,16 +50,11 @@ internal static class EnumValueCollector
 
         var definitionsInDeclarationOrder = fieldDefinitionsCollection
             .Concat(propertyDefinitionsCollection)
-            .OrderBy(definition => definition.Location.SourceSpan.Start);
+            .OrderBy(definition => definition.Location.SourceSpan.Start)
+            .ToArray();
 
         return new CollectResult(
-            Definitions: definitionsInDeclarationOrder.Select(static (x, index) => new Definition(
-                InternalIndex: index,
-                Name: x.Name,
-                NormalizedName: x.NormalizedName,
-                Location: x.Location,
-                FullyQualifiedCustomType: x.FullyQualifiedCustomType,
-                DiagnosticReports: x.DiagnosticReports)).ToArray());
+            Definitions: ConstructDefinitionsFromOrderedData(definitionsInDeclarationOrder, declarationName: component.Identifier.ValueText));
     }
 
 
@@ -77,6 +80,12 @@ internal static class EnumValueCollector
             })
             .Select(propertySyntax =>
             {
+                var enumClassValueAttribute = propertySyntax.AttributeLists.GetByName(
+                    SchemaConsts.AttributeNames.EnumClassValueFullyQualified,
+                    semanticModel,
+                    token);
+
+                var explicitIndex = GetEnumIndex(enumClassValueAttribute, semanticModel, token);
 
                 var fieldType = propertySyntax.Type;
                 ITypeSymbol fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType, token).Type!;
@@ -106,8 +115,10 @@ internal static class EnumValueCollector
                 return new CollectedValueData(
                     Name: name,
                     NormalizedName: normalizedName,
+                    ExplicitIndex: explicitIndex,
                     Location: location,
                     FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                    IsEnumClassValueAttributeShared: false,
                     DiagnosticReports: reports);
             })
             .ToArray();
@@ -162,6 +173,15 @@ internal static class EnumValueCollector
             })
             .SelectMany(fieldSyntax =>
             {
+                var enumClassValueAttribute = fieldSyntax.AttributeLists.GetByName(
+                    SchemaConsts.AttributeNames.EnumClassValueFullyQualified,
+                    semanticModel,
+                    token);
+                var isEnumClassValueAttributeShared = enumClassValueAttribute is not null
+                    && fieldSyntax.Declaration.Variables.Count > 1;
+
+                var explicitIndex = GetEnumIndex(enumClassValueAttribute, semanticModel, token);
+
                 var fieldType = fieldSyntax.Declaration.Type;
                 ITypeSymbol fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType, token).Type!;
 
@@ -191,8 +211,10 @@ internal static class EnumValueCollector
                     return new CollectedValueData(
                         Name: name,
                         NormalizedName: normalizedName,
+                        ExplicitIndex: explicitIndex,
                         Location: location,
                         FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                        IsEnumClassValueAttributeShared: isEnumClassValueAttributeShared,
                         DiagnosticReports: reports);
                 });
             })
@@ -210,10 +232,110 @@ internal static class EnumValueCollector
         return conversion.Exists && conversion.IsImplicit;
     }
 
+    private static int? GetEnumIndex(
+        AttributeSyntax? enumClassValueAttribute,
+        SemanticModel semanticModel,
+        CancellationToken token)
+    {
+        if (enumClassValueAttribute is null)
+            return null;
+
+        var arguments = enumClassValueAttribute.ArgumentList?.Arguments;
+        if (arguments is null || arguments.Value.Count != 1)
+            return null;
+
+        var constantValue = semanticModel.GetConstantValue(arguments.Value[0].Expression, token);
+        return constantValue.HasValue && constantValue.Value is int enumIndex
+            ? enumIndex
+            : null;
+    }
+
+
+
+
+    private static Definition[] ConstructDefinitionsFromOrderedData(CollectedValueData[] data, string declarationName)
+    {
+        var definitions = new Definition[data.Length];
+
+        var internalIndexCounter = 0; // equivalent to array indexer
+
+        var internalIndexesPerResolvedIndex = new Dictionary<int, List<int>>(data.Length);
+        var resolvedIndexesInInternalIndexOrder = new int[data.Length];
+        int resolvedIndexCounter = 0;
+
+        while (internalIndexCounter < data.Length)
+        {
+            var valueData = data[internalIndexCounter];
+
+            if (valueData.ExplicitIndex.HasValue)
+            {
+                resolvedIndexCounter = valueData.ExplicitIndex.Value;
+            }
+
+            if (internalIndexesPerResolvedIndex.ContainsKey(resolvedIndexCounter))
+            {
+                internalIndexesPerResolvedIndex[resolvedIndexCounter].Add(internalIndexCounter);
+            }
+            else
+            {
+                internalIndexesPerResolvedIndex[resolvedIndexCounter] = [internalIndexCounter];
+            }
+
+            resolvedIndexesInInternalIndexOrder[internalIndexCounter] = resolvedIndexCounter;
+
+
+            internalIndexCounter++;
+
+            if (resolvedIndexCounter < int.MaxValue)
+                resolvedIndexCounter++;
+        }
+
+        internalIndexCounter = 0;
+
+        while (internalIndexCounter < data.Length)
+        {
+            var valueData = data[internalIndexCounter];
+
+            var resolvedIndex = resolvedIndexesInInternalIndexOrder[internalIndexCounter];
+            var collidingInternalIndexes = internalIndexesPerResolvedIndex[resolvedIndex];
+
+            if (collidingInternalIndexes.Count > 1)
+            {
+                var collidingDefinitionsNames = collidingInternalIndexes.Where(x => x != internalIndexCounter)
+                    .Select(collidingInternalIndex => data[collidingInternalIndex].NormalizedName);
+
+                valueData.DiagnosticReports ??= [];
+                valueData.DiagnosticReports.Add(
+                    Diagnostics.CollidingEnumIndexes(valueData.Location, declarationName, valueData.NormalizedName, string.Join(", ", collidingDefinitionsNames)));
+            }
+
+            definitions[internalIndexCounter]
+                = new Definition(
+                    InternalIndex: internalIndexCounter,
+                    ResolvedIndex: resolvedIndex,
+                    ExplicitIndex: valueData.ExplicitIndex,
+                    Name: valueData.Name,
+                    NormalizedName: valueData.NormalizedName,
+                    Location: valueData.Location,
+                    FullyQualifiedCustomType: valueData.FullyQualifiedCustomType,
+                    IsEnumClassValueAttributeShared: valueData.IsEnumClassValueAttributeShared,
+                    DiagnosticReports: valueData.DiagnosticReports);
+
+            internalIndexCounter++;
+        }
+
+        return definitions;
+    }
+
+
+
+
     private record struct CollectedValueData(
         string Name,
         string NormalizedName,
+        int? ExplicitIndex,
         Location Location,
         string? FullyQualifiedCustomType,
-        IEnumerable<Diagnostic>? DiagnosticReports);
+        bool IsEnumClassValueAttributeShared,
+        List<Diagnostic>? DiagnosticReports);
 }
