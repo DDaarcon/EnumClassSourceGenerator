@@ -16,8 +16,13 @@ internal static class EnumValueCollector
     internal record struct CollectResult(
         Definition[] Definitions);
 
-    /// <param name="Name">Name as declared in code</param>
-    /// <param name="NormalizedName">Displayable name, e.g. without '@' sign</param>
+    /// <summary>Describes a candidate enum-class value found in the target declaration.</summary>
+    /// <param name="InternalIndex">The zero-based position in source declaration order.</param>
+    /// <param name="Name">The identifier as written in source.</param>
+    /// <param name="NormalizedName">The identifier without contextual escaping, such as a leading <c>@</c>.</param>
+    /// <param name="Location">The source location of the declaration.</param>
+    /// <param name="FullyQualifiedCustomType">The fully qualified derived type, or <see langword="null"/> for the enum-class type itself.</param>
+    /// <param name="DiagnosticReports">Diagnostics associated with the candidate.</param>
     internal record struct Definition(
         int InternalIndex,
         string Name,

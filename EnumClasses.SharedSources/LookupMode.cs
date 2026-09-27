@@ -1,5 +1,8 @@
 ﻿namespace EnumClasses
 {
+    /// <summary>
+    /// Specifies how lookup code is generated for operations such as deserialization.
+    /// </summary>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal enum LookupMode
 #else
@@ -7,15 +10,17 @@
 #endif
     {
         /// <summary>
-        /// The lookup implementation is selected automatically.
+        /// Lets the generator select an implementation based on the target framework and number of values.
         /// </summary>
         Automatic = 0,
+
         /// <summary>
-        /// Forces matching with if chain.
+        /// Generates a sequence of equality checks.
         /// </summary>
         ForceIfChain = 1,
+
         /// <summary>
-        /// Forces matching with a dictionary.
+        /// Generates a dictionary-based lookup.
         /// </summary>
         ForceDictionary = 2
     }

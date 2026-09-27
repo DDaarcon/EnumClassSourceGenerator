@@ -3,8 +3,9 @@
 namespace EnumClasses
 {
     /// <summary>
-    /// Base class for an attribute defining Enum Class. Do not use directly.
+    /// Provides configuration shared by attributes that generate an enum class.
     /// </summary>
+    /// <remarks>Apply <see cref="EnumClassAttribute"/> or <see cref="NumberedEnumClassAttribute"/> instead.</remarks>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal abstract class BaseEnumClassAttribute : Attribute
@@ -13,34 +14,55 @@ namespace EnumClasses
 #endif
     {
         /// <summary>
-        /// Flag enabling generation of a custom <see cref="Text.Json.Serialization.JsonConverter{T}"/> for the enum class. Defaults to <c>true</c>.
+        /// Gets or sets whether a <c>System.Text.Json.Serialization.JsonConverter&lt;T&gt;</c> is generated for the enum class.
         /// </summary>
+        /// <remarks>
+        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.GenerateJsonConverter"/> is used.
+        /// The built-in default is <see langword="true"/>.
+        /// </remarks>
         public bool GenerateJsonConverter { get; set; } = true;
 
         /// <summary>
-        /// Flag enabling generation of a nested <c>Raw</c> enum and conversions between it and the enum class. Defaults to <c>false</c>.
+        /// Gets or sets whether a nested <c>Raw</c> enum and conversions to and from it are generated.
         /// </summary>
+        /// <remarks>
+        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.GenerateRawEnum"/> is used.
+        /// The built-in default is <see langword="false"/>.
+        /// </remarks>
         public bool GenerateRawEnum { get; set; } = false;
 
         /// <summary>
-        /// Specifies how generated lookup code is selected. Used, among others, in deserialization. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultLookupMode"/>.
+        /// Gets or sets how the generator chooses lookup implementations for operations such as deserialization.
         /// </summary>
+        /// <remarks>When omitted, <see cref="EnumClassDefaultsAttribute.LookupMode"/> is used.</remarks>
         public LookupMode LookupMode { get; set; } = EnumClassDefaultsAttribute.DefaultLookupMode;
 
         /// <summary>
-        /// Controls the constructors restrictions. Defaults to <see cref="EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode" />.
+        /// Gets or sets the restrictions applied to instance constructors.
         /// </summary>
+        /// <remarks>When omitted, <see cref="EnumClassDefaultsAttribute.ConstructionRestrictionMode"/> is used.</remarks>
         public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; } = EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode;
     }
 
 
     /// <summary>
-    /// Defines an Enum Class. <br />
-    /// Enumerable values should be defined as either fields with `public static readonly` modifiers or properties with `public static` modifiers and only a getter (no setter).
-    /// Enumerable values can be of a containing type type or one inheriting from it.
+    /// Marks a class for enum-class member generation.
     /// </summary>
     /// <remarks>
-    /// Default values for parameters can be set up by applying the <see cref="EnumClassDefaultsAttribute"/> on Assembly.
+    /// <para>
+    /// The target must be a partial, non-generic, non-nested class in a named namespace and must declare
+    /// its accessibility explicitly.
+    /// </para>
+    /// <para>
+    /// Values are declared as initialized <c>public static readonly</c> fields or initialized
+    /// <c>public static</c> get-only auto-properties. A value may have the target class type or a type
+    /// derived from it. Apply <see cref="EnumClassIgnoreAttribute"/> to an otherwise eligible member to
+    /// exclude it from generation.
+    /// </para>
+    /// <para>
+    /// Apply <see cref="EnumClassDefaultsAttribute"/> to the assembly to configure defaults for options
+    /// not specified on this attribute.
+    /// </para>
     /// </remarks>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal sealed class EnumClassAttribute : BaseEnumClassAttribute
@@ -51,13 +73,17 @@ namespace EnumClasses
     }
 
     /// <summary>
-    /// Defines a Numbered Enum Class. <br />
-    /// Enumerable values should be defined as either fields with `public static readonly` modifiers or properties with `public static` modifiers and only a getter (no setter).
-    /// Enumerable values can be of a containing type type or one inheriting from it.<br />
-    /// Numbered Enum Values has to have a value provided for `EnumIndex` property.
+    /// Marks a class for numbered enum-class member generation.
     /// </summary>
     /// <remarks>
-    /// Default values for parameters can be set up by applying the <see cref="EnumClassDefaultsAttribute"/> on Assembly.
+    /// <para>
+    /// The target and its values must have the same shape required by <see cref="EnumClassAttribute"/>.
+    /// Each declared value must have a unique <c>EnumIndex</c> value.
+    /// </para>
+    /// <para>
+    /// Apply <see cref="EnumClassDefaultsAttribute"/> to the assembly to configure defaults for options
+    /// not specified on this attribute.
+    /// </para>
     /// </remarks>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
@@ -66,8 +92,12 @@ namespace EnumClasses
 #endif
     {
         /// <summary>
-        /// Flag controlling presence of `require` keyword for `EnumIndex` property.
+        /// Gets or sets whether the generated <c>EnumIndex</c> property uses the <see langword="required"/> modifier.
         /// </summary>
+        /// <remarks>
+        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.RequireIndexAssignmentInInitializer"/> is used.
+        /// The built-in default is <see langword="true"/>.
+        /// </remarks>
         public bool RequireIndexAssignmentInInitializer { get; set; } = true;
     }
 }

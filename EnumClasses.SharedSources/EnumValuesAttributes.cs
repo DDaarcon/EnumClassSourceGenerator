@@ -3,7 +3,7 @@
 namespace EnumClasses
 {
     /// <summary>
-    /// Marks a field or property that should be ignored when generating Enum Class values.
+    /// Excludes an otherwise eligible field or property from the generated enum-class values.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 #if ENUMCLASSES_SOURCE_GENERATOR

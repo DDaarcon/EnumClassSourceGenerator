@@ -1,5 +1,8 @@
 ﻿namespace EnumClasses
 {
+    /// <summary>
+    /// Specifies how the generator restricts and supplies enum-class constructors.
+    /// </summary>
 #if ENUMCLASSES_SOURCE_GENERATOR
     internal enum ConstructionRestrictionMode
 #else
@@ -7,19 +10,19 @@
 #endif
     {
         /// <summary>
-        /// All user-defined instance constructors must be either private or protected;
-        /// a private parameterless constructor is generated when no instance constructor is declared.
+        /// Requires user-declared instance constructors to be private or protected and generates a private
+        /// parameterless constructor when none is declared.
         /// </summary>
         WithPrivateDefaultConstructor = 0,
 
         /// <summary>
-        /// All user-defined instance constructors must be either private or protected;
-        /// a protected parameterless constructor is generated when no instance constructor is declared.
+        /// Requires user-declared instance constructors to be private or protected and generates a protected
+        /// parameterless constructor when none is declared.
         /// </summary>
         WithProtectedDefaultConstructor = 1,
 
         /// <summary>
-        /// No restrictions on constructors.
+        /// Does not validate or generate instance constructors.
         /// </summary>
         Off = 2
     }

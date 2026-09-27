@@ -82,6 +82,10 @@ internal class EnumClassDeclarationTemplate
 
             
                     private static System.Collections.Immutable.ImmutableArray<{{definition.DeclarationName}}> _allValues;
+
+                    /// <summary>
+                    /// Gets all declared values in source declaration order.
+                    /// </summary>
                     public static System.Collections.Immutable.ImmutableArray<{{definition.DeclarationName}}> AllValues => _allValues;
 
                     private int _internalIndex;
@@ -106,7 +110,12 @@ internal class EnumClassDeclarationTemplate
                     {
                         return object.ReferenceEquals(one, two);
                     }
-                            
+
+                    /// <summary>
+                    /// Determines whether this instance and another value are the same object.
+                    /// </summary>
+                    /// <param name="other">The value to compare with this instance.</param>
+                    /// <returns><see langword="true"/> when both references identify the same object; otherwise, <see langword="false"/>.</returns>
                     public bool Equals({{definition.DeclarationName}}? other)
                     {
                         if (other is null)
@@ -115,10 +124,12 @@ internal class EnumClassDeclarationTemplate
                         return AreEqual(this, other);
                     }
                             
+                    /// <inheritdoc/>
                     public override bool Equals(object? obj)
                     {
                         return Equals(obj as {{definition.DeclarationName}});
                     }
+                    /// <inheritdoc/>
                     public override int GetHashCode()
                     {
                         return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
@@ -222,12 +233,23 @@ internal class EnumClassDeclarationTemplate
 
                 {{BuildAccessorMethod(enumValues, props)}}
                 
+                /// <summary>
+                /// Tries to get the declared value with the specified enum index.
+                /// </summary>
+                /// <param name="index">The enum index to find.</param>
+                /// <param name="result">The matching declared value, or <see langword="null"/> when no value has the index.</param>
+                /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
                 public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = GetByEnumIndex(index);
                     return result is not null;
                 }
                 
+                /// <summary>
+                /// Determines whether a declared value has the specified enum index.
+                /// </summary>
+                /// <param name="index">The enum index to find.</param>
+                /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsEnumIndex(int index)
                     => GetByEnumIndex(index) is not null;
                 """;
@@ -236,12 +258,19 @@ internal class EnumClassDeclarationTemplate
             {
                 if (!CheckIfNumberedByUser(props.Definition))
                     return """
+                        /// <summary>
+                        /// Gets the zero-based index assigned from source declaration order.
+                        /// </summary>
                         public int EnumIndex { get; private set; }
                         """;
 
                 if (props.Configuration.RequireIndexAssignmentInInitializer)
                     return """
                         private int _enumIndex;
+
+                        /// <summary>
+                        /// Gets or initializes the unique application-defined index for this value.
+                        /// </summary>
                         public required int EnumIndex
                         {
                             get => _enumIndex;
@@ -255,6 +284,10 @@ internal class EnumClassDeclarationTemplate
 
                 return """
                     private int _enumIndex;
+
+                    /// <summary>
+                    /// Gets or initializes the unique application-defined index for this value.
+                    /// </summary>
                     public int EnumIndex
                     {
                         get => _enumIndex;
@@ -270,6 +303,11 @@ internal class EnumClassDeclarationTemplate
             static string BuildAccessorMethod(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
                 return $$"""
+                    /// <summary>
+                    /// Gets the declared value with the specified enum index.
+                    /// </summary>
+                    /// <param name="index">The enum index to find.</param>
+                    /// <returns>The matching declared value, or <see langword="null"/> when no value has the index.</returns>
                     public static {{props.Definition.DeclarationName}}? GetByEnumIndex(int index)
                     {
                         {{BuildBody(enumValues, props)}}
@@ -307,11 +345,21 @@ internal class EnumClassDeclarationTemplate
             return $$"""
                 private Raw? _rawValue;
 
+                /// <summary>
+                /// Represents the declared enum-class values as a conventional enum.
+                /// </summary>
+                /// <remarks>Members receive zero-based numeric values in source declaration order.</remarks>
                 public enum Raw
                 {
                     {{String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name))}}
                 }
 
+                /// <summary>
+                /// Converts a raw enum value to its declared enum-class value.
+                /// </summary>
+                /// <param name="value">The raw value to convert.</param>
+                /// <returns>The corresponding declared enum-class value.</returns>
+                /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="value"/> is not defined.</exception>
                 public static {{props.Definition.DeclarationName}} FromRaw(Raw value)
                 {
                     if (TryFromRaw(value, out var result))
@@ -320,6 +368,12 @@ internal class EnumClassDeclarationTemplate
                     throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a defined raw enum value.");
                 }
 
+                /// <summary>
+                /// Tries to convert a raw enum value to its declared enum-class value.
+                /// </summary>
+                /// <param name="value">The raw value to convert.</param>
+                /// <param name="result">The corresponding declared value, or <see langword="null"/> when the raw value is not defined.</param>
+                /// <returns><see langword="true"/> when <paramref name="value"/> is defined; otherwise, <see langword="false"/>.</returns>
                 public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = value switch
@@ -331,8 +385,20 @@ internal class EnumClassDeclarationTemplate
                     return result is not null;
                 }
 
+                /// <summary>
+                /// Converts this enum-class value to its raw enum value.
+                /// </summary>
+                /// <returns>The corresponding raw enum value.</returns>
+                /// <exception cref="System.ArgumentOutOfRangeException">This instance is not a declared enum-class value.</exception>
                 public Raw ToRaw() => ToRaw(this);
 
+                /// <summary>
+                /// Converts an enum-class value to its raw enum value.
+                /// </summary>
+                /// <param name="value">The enum-class value to convert.</param>
+                /// <returns>The corresponding raw enum value.</returns>
+                /// <exception cref="System.ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
+                /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="value"/> is not a declared enum-class value.</exception>
                 public static Raw ToRaw({{props.Definition.DeclarationName}} value)
                 {
                     if (TryToRaw(value, out var result))
@@ -344,6 +410,15 @@ internal class EnumClassDeclarationTemplate
                     throw new System.ArgumentOutOfRangeException(nameof(value), value, "The value is not a declared enum class value.");
                 }
 
+                /// <summary>
+                /// Tries to convert an enum-class value to its raw enum value.
+                /// </summary>
+                /// <param name="value">The enum-class value to convert.</param>
+                /// <param name="result">The corresponding raw value when conversion succeeds; otherwise, the default raw value.</param>
+                /// <returns>
+                /// <see langword="true"/> when <paramref name="value"/> is a declared enum-class value;
+                /// otherwise, <see langword="false"/>.
+                /// </returns>
                 public static bool TryToRaw({{props.Definition.DeclarationName}}? value, out Raw result)
                 {
                     if (value?._rawValue is Raw rawValue)
@@ -356,7 +431,17 @@ internal class EnumClassDeclarationTemplate
                     return false;
                 }
 
+                /// <summary>Converts a raw enum value to its declared enum-class value.</summary>
+                /// <param name="value">The raw value to convert.</param>
+                /// <returns>The corresponding declared enum-class value.</returns>
+                /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="value"/> is not defined.</exception>
                 public static implicit operator {{props.Definition.DeclarationName}}(Raw value) => FromRaw(value);
+
+                /// <summary>Converts an enum-class value to its raw enum value.</summary>
+                /// <param name="value">The enum-class value to convert.</param>
+                /// <returns>The corresponding raw enum value.</returns>
+                /// <exception cref="System.ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
+                /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="value"/> is not a declared enum-class value.</exception>
                 public static explicit operator Raw({{props.Definition.DeclarationName}} value) => ToRaw(value);
                 """;
         }
@@ -365,8 +450,10 @@ internal class EnumClassDeclarationTemplate
         {
             return $$"""
                 /// <summary>
-                /// Exhaustive switch. Executes a callback matching the value.
+                /// Invokes the callback associated with this value. A callback is required for every declared value.
                 /// </summary>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <exception cref="System.InvalidOperationException">This instance is not a declared enum-class value.</exception>
                 public void SwitchEx(
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action on{x.NormalizedName}"))}})
                 {
@@ -383,8 +470,12 @@ internal class EnumClassDeclarationTemplate
                 }
 
                 /// <summary>
-                /// Executes a callback matching the value.
+                /// Invokes the callback associated with this value, when one was supplied.
                 /// </summary>
+                /// <remarks>
+                /// Does nothing when the matching callback is <see langword="null"/> or this instance is not a declared value.
+                /// </remarks>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The optional callback for <c>{x.NormalizedName}</c>.</param>"))}}
                 public void Switch(
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action? on{x.NormalizedName} = null"))}})
                 {
@@ -399,8 +490,13 @@ internal class EnumClassDeclarationTemplate
                 }
 
                 /// <summary>
-                /// Exhaustive switch. Executes a callback matching the value.
+                /// Passes state to and invokes the callback associated with this value.
+                /// A callback is required for every declared value.
                 /// </summary>
+                /// <typeparam name="TState">The type of state passed to the callback.</typeparam>
+                /// <param name="state">State passed to the selected callback.</param>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <exception cref="System.InvalidOperationException">This instance is not a declared enum-class value.</exception>
                 public void SwitchEx<TState>(
                     TState state,
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState> on{x.NormalizedName}"))}})
@@ -418,8 +514,14 @@ internal class EnumClassDeclarationTemplate
                 }
 
                 /// <summary>
-                /// Executes a callback matching the value.
+                /// Passes state to and invokes the callback associated with this value, when one was supplied.
                 /// </summary>
+                /// <typeparam name="TState">The type of state passed to the callback.</typeparam>
+                /// <param name="state">State passed to the selected callback.</param>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The optional callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <remarks>
+                /// Does nothing when the matching callback is <see langword="null"/> or this instance is not a declared value.
+                /// </remarks>
                 public void Switch<TState>(
                     TState state,
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState>? on{x.NormalizedName} = null"))}})
@@ -438,8 +540,13 @@ internal class EnumClassDeclarationTemplate
 
 
                 /// <summary>
-                /// Exhaustive match. Executes a callback matching the value and returns the result.
+                /// Invokes the callback associated with this value and returns its result.
+                /// A callback is required for every declared value.
                 /// </summary>
+                /// <typeparam name="TResult">The callback result type.</typeparam>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <returns>The result of the selected callback.</returns>
+                /// <exception cref="System.InvalidOperationException">This instance is not a declared enum-class value.</exception>
                 public TResult MatchEx<TResult>(
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult> on{x.NormalizedName}"))}})
                 {
@@ -455,8 +562,14 @@ internal class EnumClassDeclarationTemplate
                 }
 
                 /// <summary>
-                /// Executes a callback matching the value and returns the result.
+                /// Invokes the callback associated with this value and returns its result, when a callback was supplied.
                 /// </summary>
+                /// <typeparam name="TResult">The callback result type.</typeparam>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The optional callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <returns>
+                /// The result of the selected callback, or <see langword="default"/> when the matching callback is
+                /// <see langword="null"/> or this instance is not a declared value.
+                /// </returns>
                 public TResult? Match<TResult>(
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult>? on{x.NormalizedName} = null"))}})
                 {
@@ -472,8 +585,15 @@ internal class EnumClassDeclarationTemplate
 
 
                 /// <summary>
-                /// Exhaustive match. Executes a callback matching the value and returns the result.
+                /// Passes state to and invokes the callback associated with this value, then returns its result.
+                /// A callback is required for every declared value.
                 /// </summary>
+                /// <typeparam name="TResult">The callback result type.</typeparam>
+                /// <typeparam name="TState">The type of state passed to the callback.</typeparam>
+                /// <param name="state">State passed to the selected callback.</param>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <returns>The result of the selected callback.</returns>
+                /// <exception cref="System.InvalidOperationException">This instance is not a declared enum-class value.</exception>
                 public TResult MatchEx<TResult, TState>(
                     TState state,
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult> on{x.NormalizedName}"))}})
@@ -490,8 +610,17 @@ internal class EnumClassDeclarationTemplate
                 }
 
                 /// <summary>
-                /// Executes a callback matching the value and returns the result.
+                /// Passes state to and invokes the callback associated with this value, then returns its result,
+                /// when a callback was supplied.
                 /// </summary>
+                /// <typeparam name="TResult">The callback result type.</typeparam>
+                /// <typeparam name="TState">The type of state passed to the callback.</typeparam>
+                /// <param name="state">State passed to the selected callback.</param>
+                {{String.Join(Consts.Nl, enumValues.Select(x => $"/// <param name=\"on{x.NormalizedName}\">The optional callback for <c>{x.NormalizedName}</c>.</param>"))}}
+                /// <returns>
+                /// The result of the selected callback, or <see langword="default"/> when the matching callback is
+                /// <see langword="null"/> or this instance is not a declared value.
+                /// </returns>
                 public TResult? Match<TResult, TState>(
                     TState state,
                     {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult>? on{x.NormalizedName} = null"))}})
@@ -517,6 +646,13 @@ internal class EnumClassDeclarationTemplate
                 return "";
 
             return $$"""
+                /// <summary>
+                /// Tries to return a declared value as its more specific declared type.
+                /// </summary>
+                /// <typeparam name="TValue">The derived enum-class value type to match.</typeparam>
+                /// <param name="value">The declared value to inspect.</param>
+                /// <param name="typeMatchingValue">The value cast to <typeparamref name="TValue"/>, or <see langword="null"/> when it does not match.</param>
+                /// <returns><see langword="true"/> when <paramref name="value"/> is declared as <typeparamref name="TValue"/>; otherwise, <see langword="false"/>.</returns>
                 public static bool TryGetOfType<TValue>({{definition.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
                     where TValue : {{definition.DeclarationName}}
                 {
@@ -575,28 +711,65 @@ internal class EnumClassDeclarationTemplate
 
                 {{BuildDictionaryDeclaration(enumValues, props)}}
 
+                /// <summary>
+                /// Returns the source member name used to represent this declared value.
+                /// </summary>
+                /// <returns>The case-sensitive source member name.</returns>
+                /// <remarks>Renaming the declared member changes its serialized and JSON representation.</remarks>
                 public string Serialize() => _serializedName;
+
+                /// <summary>
+                /// Returns the source member name used to represent a declared value.
+                /// </summary>
+                /// <param name="value">The value to serialize.</param>
+                /// <returns>The case-sensitive source member name.</returns>
+                /// <exception cref="System.NullReferenceException"><paramref name="value"/> is <see langword="null"/>.</exception>
+                /// <remarks>Renaming the declared member changes its serialized and JSON representation.</remarks>
                 public static string Serialize({{props.Definition.DeclarationName}} value) => value.Serialize();
 
+                /// <summary>Returns the source member name used to represent this declared value.</summary>
+                /// <returns>The case-sensitive source member name.</returns>
                 public override string ToString() => Serialize();
                 
                 {{BuildDeserializers(enumValues, props)}}
                 
+                /// <summary>
+                /// Tries to find a declared value by its case-sensitive source member name.
+                /// </summary>
+                /// <param name="serializedValue">The source member name to find.</param>
+                /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
+                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
                     return result is not null;
                 }
                 
+                /// <summary>
+                /// Tries to find a declared value by its case-sensitive source member name.
+                /// </summary>
+                /// <param name="serializedValue">The source member name to find.</param>
+                /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
+                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
                     return result is not null;
                 }
                 
+                /// <summary>
+                /// Determines whether a declared value has the specified case-sensitive source member name.
+                /// </summary>
+                /// <param name="serializedValue">The source member name to find.</param>
+                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(string? serializedValue)
                     => Deserialize(serializedValue) is not null;
                 
+                /// <summary>
+                /// Determines whether a declared value has the specified case-sensitive source member name.
+                /// </summary>
+                /// <param name="serializedValue">The source member name to find.</param>
+                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
                     => Deserialize(serializedValue) is not null;
                 """;
@@ -630,6 +803,11 @@ internal class EnumClassDeclarationTemplate
                 static string BuildDictionaryBasedDeserialization(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
                     return $$"""
+                        /// <summary>
+                        /// Finds a declared value by its case-sensitive source member name.
+                        /// </summary>
+                        /// <param name="serializedValue">The source member name to find.</param>
+                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(string? serializedValue)
                         {
                             if (serializedValue is null)
@@ -640,6 +818,11 @@ internal class EnumClassDeclarationTemplate
                                 : null;
                         }
 
+                        /// <summary>
+                        /// Finds a declared value by its case-sensitive source member name.
+                        /// </summary>
+                        /// <param name="serializedValue">The source member name to find.</param>
+                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
                             {{BuildSpanDeserializationLogic(props)}}
@@ -668,6 +851,11 @@ internal class EnumClassDeclarationTemplate
                 static string BuildIfChainBasedDeserialization(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
                     return $$"""
+                        /// <summary>
+                        /// Finds a declared value by its case-sensitive source member name.
+                        /// </summary>
+                        /// <param name="serializedValue">The source member name to find.</param>
+                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(string? serializedValue)
                         {
                             if (serializedValue is null)
@@ -676,6 +864,11 @@ internal class EnumClassDeclarationTemplate
                             return Deserialize(System.MemoryExtensions.AsSpan(serializedValue));
                         }
 
+                        /// <summary>
+                        /// Finds a declared value by its case-sensitive source member name.
+                        /// </summary>
+                        /// <param name="serializedValue">The source member name to find.</param>
+                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
                             {{String.Join(Consts.Nl, enumValues.Select(enumValue

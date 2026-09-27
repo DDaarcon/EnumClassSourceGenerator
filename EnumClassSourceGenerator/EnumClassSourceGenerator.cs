@@ -18,9 +18,13 @@ namespace EnumClasses.SourceGenerators
      * For Numbered Enum Class verify whether assigned EnumIndex values are free - upgrade to compile-time validation
      * 
      */
+    /// <summary>
+    /// Generates enum-class members for classes marked with <c>EnumClass</c> attributes.
+    /// </summary>
     [Generator]
     public class EnumClassSourceGenerator : IIncrementalGenerator
     {
+        /// <inheritdoc/>
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var defaultsIncrementalProps = context.CompilationProvider.Select(static (compilation, token) => EnumClassDefaultsCollector.Collect(compilation.Assembly));
