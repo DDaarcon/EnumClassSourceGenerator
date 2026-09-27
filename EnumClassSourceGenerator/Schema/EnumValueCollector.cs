@@ -18,16 +18,13 @@ internal static class EnumValueCollector
 
     /// <param name="Name">Name as declared in code</param>
     /// <param name="NormalizedName">Displayable name, e.g. without '@' sign</param>
-    /// <param name="FullyQualifiedCustomType"></param>
-    /// <param name="Location"></param>
-    /// <param name="HasInvalidType"></param>
-    /// <param name="HasInvalidAccessors"></param>
     internal record struct Definition(
+        int InternalIndex,
         string Name,
         string NormalizedName,
         Location Location,
-        string? FullyQualifiedCustomType = null,
-        IEnumerable<Diagnostic>? DiagnosticReports = null)
+        string? FullyQualifiedCustomType,
+        IEnumerable<Diagnostic>? DiagnosticReports)
     {
         public readonly bool IsValid => DiagnosticReports is null || !DiagnosticReports.Any();
     }
@@ -38,13 +35,18 @@ internal static class EnumValueCollector
         var fieldDefinitionsCollection = CollectFieldDefinitions(component, semanticModel, token);
         var propertyDefinitionsCollection = CollectPropertyDefinitions(component, semanticModel, token);
 
-        var definitionsInDeclarationOrder = fieldDefinitionsCollection.Definitions
-            .Concat(propertyDefinitionsCollection.Definitions)
-            .OrderBy(definition => definition.Location.SourceSpan.Start)
-            .ToArray();
+        var definitionsInDeclarationOrder = fieldDefinitionsCollection
+            .Concat(propertyDefinitionsCollection)
+            .OrderBy(definition => definition.Location.SourceSpan.Start);
 
         return new CollectResult(
-            Definitions: definitionsInDeclarationOrder);
+            Definitions: definitionsInDeclarationOrder.Select(static (x, index) => new Definition(
+                InternalIndex: index,
+                Name: x.Name,
+                NormalizedName: x.NormalizedName,
+                Location: x.Location,
+                FullyQualifiedCustomType: x.FullyQualifiedCustomType,
+                DiagnosticReports: x.DiagnosticReports)).ToArray());
     }
 
 
@@ -52,12 +54,12 @@ internal static class EnumValueCollector
         SyntaxKind.PublicKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectResult CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
 
-        var definitions = component.ChildNodes()
+        var valuesData = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.PropertyDeclaration))
             .OfType<PropertyDeclarationSyntax>()
             .Where(propertySyntax =>
@@ -95,7 +97,7 @@ internal static class EnumValueCollector
                     reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
 
-                return new Definition(
+                return new CollectedValueData(
                     Name: name,
                     NormalizedName: normalizedName,
                     Location: location,
@@ -104,8 +106,7 @@ internal static class EnumValueCollector
             })
             .ToArray();
 
-        return new CollectResult(
-            Definitions: definitions);
+        return valuesData;
 
         static bool IsInitializedGetOnlyAutoProperty(
             PropertyDeclarationSyntax property)
@@ -137,12 +138,12 @@ internal static class EnumValueCollector
         SyntaxKind.ReadOnlyKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectResult CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
 
-        var definitions = component.ChildNodes()
+        var valuesData = component.ChildNodes()
             .Where(x => x.IsKind(SyntaxKind.FieldDeclaration))
             .OfType<FieldDeclarationSyntax>()
             .Where(fieldSyntax =>
@@ -177,7 +178,7 @@ internal static class EnumValueCollector
                     if (!isOfMainOrDerivedType)
                         reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
-                    return new Definition(
+                    return new CollectedValueData(
                         Name: name,
                         NormalizedName: normalizedName,
                         Location: location,
@@ -187,8 +188,7 @@ internal static class EnumValueCollector
             })
             .ToArray();
 
-        return new CollectResult(
-            Definitions: definitions);
+        return valuesData;
     }
 
 
@@ -199,4 +199,11 @@ internal static class EnumValueCollector
 
         return conversion.Exists && conversion.IsImplicit;
     }
+
+    private record struct CollectedValueData(
+        string Name,
+        string NormalizedName,
+        Location Location,
+        string? FullyQualifiedCustomType,
+        IEnumerable<Diagnostic>? DiagnosticReports);
 }

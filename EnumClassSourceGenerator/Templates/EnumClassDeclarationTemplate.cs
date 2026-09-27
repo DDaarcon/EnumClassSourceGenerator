@@ -3,6 +3,7 @@ using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;
 using EnumClassProps = EnumClasses.SourceGenerators.Schema.EnumClassCollector.Definition.WithConfig;
+using EnumValueDefinition = EnumClasses.SourceGenerators.Schema.EnumValueCollector.Definition;
 
 namespace EnumClasses.SourceGenerators.Templates;
 
@@ -61,13 +62,10 @@ internal class EnumClassDeclarationTemplate
 
         var enumValues = definition.EnumValues.Definitions
             .Where(x => x.IsValid)
-            .Select((x, index) => new IndexedEnumValue(
-                DefaultIndex: index,
-                Def: x))
             .ToArray();
 
-        bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.Def.FullyQualifiedCustomType is not null);
-        var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.Def.FullyQualifiedCustomType!).Where(x => x.Key is not null);
+        bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.FullyQualifiedCustomType is not null);
+        var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.FullyQualifiedCustomType!).Where(x => x.Key is not null);
 
         var valuesCount = enumValues.Length;
 
@@ -75,7 +73,7 @@ internal class EnumClassDeclarationTemplate
             #nullable enable
             namespace {{definition.NamespaceName}}
             {
-                {{(props.Configuration.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({definition.DeclarationName}JsonConverter))]" : "")}}
+                {{(props.Configuration.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({definition.DeclarationName}.JsonConverter))]" : "")}}
                 {{definition.Modifier}} partial class {{definition.DeclarationName}} : System.IEquatable<{{definition.DeclarationName}}>
                 {
                     {{BuildConstructor(props)}}
@@ -101,6 +99,7 @@ internal class EnumClassDeclarationTemplate
                             
                     {{BuildNumberingHelpersWhenApplicable(definition)}}
 
+                    {{BuildUtf8EncodedResourcesWhenApplicable(enumValues, props)}}
                             
                     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
                     private static bool AreEqual({{definition.DeclarationName}} one, {{definition.DeclarationName}} two)
@@ -150,29 +149,31 @@ internal class EnumClassDeclarationTemplate
         }
 
 
-        static string BuildStaticConstructor(IndexedEnumValue[] enumValues, EnumClassProps props)
+        static string BuildStaticConstructor(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
             return $$"""
                 static {{props.Definition.DeclarationName}}()
                 {
                     {{(!CheckIfNumberedByUser(props.Definition)
-                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}.EnumIndex = {enumValue.DefaultIndex};"))
+                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}.EnumIndex = {enumValue.InternalIndex};"))
                         : "")}}
                 
-                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._internalIndex = {enumValue.DefaultIndex};"))}}
+                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._internalIndex = {enumValue.InternalIndex};"))}}
                 
-                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._serializedName = nameof({enumValue.Def.NormalizedName});"))}}
+                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._serializedName = nameof({enumValue.NormalizedName});"))}}
                 
                     {{(props.Configuration.GenerateRawEnum
-                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Def.Name}._rawValue = Raw.{enumValue.Def.Name};"))
+                        ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._rawValue = Raw.{enumValue.Name};"))
                         : "")}}
                             
                     _allValues = [
-                        {{string.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Def.Name))}}
+                        {{string.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name))}}
                     ];
                 
                 
-                    {{BuildSerializationDictionaryAssignment(enumValues, props)}}
+                    {{BuildSerializationDictionaryAssignmentWhenApplicable(enumValues, props)}}
+
+                    {{BuildUtf8EncodedResourcesDictionaryAssignmentWhenApplicable(enumValues, props)}}
                 
                     {{(CheckIfNumberedByUser(props.Definition)
                         ? "_usedIndexes = null;"
@@ -180,7 +181,7 @@ internal class EnumClassDeclarationTemplate
                 }
                 """;
 
-            static string BuildSerializationDictionaryAssignment(IndexedEnumValue[] enumValues, EnumClassProps props)
+            static string BuildSerializationDictionaryAssignmentWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
                 if (GetSearchMethodForStringKeys(enumValues, props) is not SearchMethod.Dictionary)
                     return "";
@@ -197,9 +198,24 @@ internal class EnumClassDeclarationTemplate
 
                 return dictAssignment;
             }
+
+            static string BuildUtf8EncodedResourcesDictionaryAssignmentWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
+            {
+                if (!CheckIfShouldIncludeUtf8EncodedResources(enumValues, props))
+                    return "";
+
+                return """
+                    _valuesBySerializedUtf8Name = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(
+                        _allValues,
+                        x => (ReadOnlyMemory<byte>) System.MemoryExtensions.AsMemory(System.Text.Encoding.UTF8.GetBytes(x._serializedName)),
+                        Utf8MemoryComparer.Instance);
+
+                    _valuesBySerializedUtf8NameSpanLookup = _valuesBySerializedUtf8Name.GetAlternateLookup<System.ReadOnlySpan<byte>>();
+                    """;
+            }
         }
 
-        static string BuildEnumIndexing(IndexedEnumValue[] enumValues, EnumClassProps props)
+        static string BuildEnumIndexing(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
             return $$"""
                 {{BuildProperty(props)}}
@@ -251,7 +267,7 @@ internal class EnumClassDeclarationTemplate
                     """;
             }
 
-            static string BuildAccessorMethod(IndexedEnumValue[] enumValues, EnumClassProps props)
+            static string BuildAccessorMethod(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
                 return $$"""
                     public static {{props.Definition.DeclarationName}}? GetByEnumIndex(int index)
@@ -260,14 +276,14 @@ internal class EnumClassDeclarationTemplate
                     }
                     """;
 
-                static string BuildBody(IndexedEnumValue[] enumValues, EnumClassProps props)
+                static string BuildBody(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
                     if (CheckIfNumberedByUser(props.Definition))
                     {
                         // TODO to be considered dict based accessing, but likely only when EnumIndex has a required keyword - to make sure values are present at launch
                         // TODO + consider specifing "index assignment restrictions", meaning - defining during class declaration how much compile-time ready can we expect the indexes to be and basing on that generating the most efficient lookup mechanizm
                         return $$"""
-                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (index == {enumValue.Def.Name}.EnumIndex) return {enumValue.Def.Name};"))}}
+                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (index == {enumValue.Name}.EnumIndex) return {enumValue.Name};"))}}
                             return null;
                             """;
                     }
@@ -275,7 +291,7 @@ internal class EnumClassDeclarationTemplate
                     return $$"""
                         return index switch
                         {
-                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.DefaultIndex} => {enumValue.Def.Name},"))}}
+                            {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.InternalIndex} => {enumValue.Name},"))}}
                             _ => null
                         };
                         """;
@@ -283,7 +299,7 @@ internal class EnumClassDeclarationTemplate
             }
         }
 
-        static string BuildRawEnumWhenApplicable(IndexedEnumValue[] enumValues, EnumClassProps props)
+        static string BuildRawEnumWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
             if (!props.Configuration.GenerateRawEnum)
                 return "";
@@ -293,7 +309,7 @@ internal class EnumClassDeclarationTemplate
 
                 public enum Raw
                 {
-                    {{String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Def.Name))}}
+                    {{String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name))}}
                 }
 
                 public static {{props.Definition.DeclarationName}} FromRaw(Raw value)
@@ -308,7 +324,7 @@ internal class EnumClassDeclarationTemplate
                 {
                     result = value switch
                     {
-                        {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"Raw.{enumValue.Def.Name} => {enumValue.Def.Name},"))}}
+                        {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"Raw.{enumValue.Name} => {enumValue.Name},"))}}
                         _ => null
                     };
 
@@ -345,20 +361,20 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildValueMatching(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
+        static string BuildValueMatching(EnumValueDefinition[] enumValues, EnumClassCollector.Definition definition)
         {
             return $$"""
                 /// <summary>
                 /// Exhaustive switch. Executes a callback matching the value.
                 /// </summary>
                 public void SwitchEx(
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action on{x.Def.NormalizedName}"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action on{x.NormalizedName}"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
-                                on{{x.Def.NormalizedName}}();
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}):
+                                on{{x.NormalizedName}}();
                                 return;
                             """))}}
                         default:
@@ -370,13 +386,13 @@ internal class EnumClassDeclarationTemplate
                 /// Executes a callback matching the value.
                 /// </summary>
                 public void Switch(
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action? on{x.Def.NormalizedName} = null"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action? on{x.NormalizedName} = null"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
-                                on{{x.Def.NormalizedName}}();
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}) && on{{x.NormalizedName}} != null:
+                                on{{x.NormalizedName}}();
                                 return;
                             """))}}
                     }
@@ -387,13 +403,13 @@ internal class EnumClassDeclarationTemplate
                 /// </summary>
                 public void SwitchEx<TState>(
                     TState state,
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState> on{x.Def.NormalizedName}"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState> on{x.NormalizedName}"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
-                                on{{x.Def.NormalizedName}}(state);
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}):
+                                on{{x.NormalizedName}}(state);
                                 return;
                             """))}}
                         default:
@@ -406,13 +422,13 @@ internal class EnumClassDeclarationTemplate
                 /// </summary>
                 public void Switch<TState>(
                     TState state,
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState>? on{x.Def.NormalizedName} = null"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Action<TState>? on{x.NormalizedName} = null"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
-                                on{{x.Def.NormalizedName}}(state);
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}) && on{{x.NormalizedName}} != null:
+                                on{{x.NormalizedName}}(state);
                                 return;
                             """))}}
                     }
@@ -425,13 +441,13 @@ internal class EnumClassDeclarationTemplate
                 /// Exhaustive match. Executes a callback matching the value and returns the result.
                 /// </summary>
                 public TResult MatchEx<TResult>(
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult> on{x.Def.NormalizedName}"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult> on{x.NormalizedName}"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
-                                return on{{x.Def.NormalizedName}}();
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}):
+                                return on{{x.NormalizedName}}();
                             """))}}
                         default:
                             throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
@@ -442,13 +458,13 @@ internal class EnumClassDeclarationTemplate
                 /// Executes a callback matching the value and returns the result.
                 /// </summary>
                 public TResult? Match<TResult>(
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult>? on{x.Def.NormalizedName} = null"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TResult>? on{x.NormalizedName} = null"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
-                                return on{{x.Def.NormalizedName}}();
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}) && on{{x.NormalizedName}} != null:
+                                return on{{x.NormalizedName}}();
                             """))}}
                     }
                     return default;
@@ -460,13 +476,13 @@ internal class EnumClassDeclarationTemplate
                 /// </summary>
                 public TResult MatchEx<TResult, TState>(
                     TState state,
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult> on{x.Def.NormalizedName}"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult> on{x.NormalizedName}"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}):
-                                return on{{x.Def.NormalizedName}}(state);
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}):
+                                return on{{x.NormalizedName}}(state);
                             """))}}
                         default:
                             throw new System.InvalidOperationException("Invalid value of {{definition.DeclarationName}}.");
@@ -478,13 +494,13 @@ internal class EnumClassDeclarationTemplate
                 /// </summary>
                 public TResult? Match<TResult, TState>(
                     TState state,
-                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult>? on{x.Def.NormalizedName} = null"))}})
+                    {{String.Join(Consts.CommaNl, enumValues.Select(x => $"System.Func<TState, TResult>? on{x.NormalizedName} = null"))}})
                 {
                     switch (_internalIndex)
                     {
                         {{String.Join(Consts.Nl, enumValues.Select(x => $$"""
-                            case {{x.DefaultIndex}} when AreEqual(this, {{x.Def.Name}}) && on{{x.Def.NormalizedName}} != null:
-                                return on{{x.Def.NormalizedName}}(state);
+                            case {{x.InternalIndex}} when AreEqual(this, {{x.Name}}) && on{{x.NormalizedName}} != null:
+                                return on{{x.NormalizedName}}(state);
                             """))}}
                     }
                     return default;
@@ -492,10 +508,10 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildTypeMatchingWhenApplicable(IndexedEnumValue[] enumValues, EnumClassCollector.Definition definition)
+        static string BuildTypeMatchingWhenApplicable(EnumValueDefinition[] enumValues, EnumClassCollector.Definition definition)
         {
-            bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.Def.FullyQualifiedCustomType is not null);
-            var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.Def.FullyQualifiedCustomType!).Where(x => x.Key is not null);
+            bool hasAnyCustomTypesForEnumValues = enumValues.Any(x => x.FullyQualifiedCustomType is not null);
+            var enumValuesPerCustomTypes = enumValues.GroupBy(x => x.FullyQualifiedCustomType!).Where(x => x.Key is not null);
 
             if (!hasAnyCustomTypesForEnumValues)
                 return "";
@@ -512,7 +528,7 @@ internal class EnumClassDeclarationTemplate
                         if (checkedType == typeof({{enumValuesPerType.Key}})
                             && ({{String.Join("\r\n|| ",
                             enumValuesPerType.Select(enumValue => $$"""
-                                    AreEqual(value, {{enumValue.Def.Name}})
+                                    AreEqual(value, {{enumValue.Name}})
                                     """))}}))
                         {
                             typeMatchingValue = (TValue)(object)value;
@@ -552,7 +568,7 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildSerialization(IndexedEnumValue[] enumValues, EnumClassProps props)
+        static string BuildSerialization(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
             return $$"""
                 private string _serializedName = null!;
@@ -585,7 +601,7 @@ internal class EnumClassDeclarationTemplate
                     => Deserialize(serializedValue) is not null;
                 """;
 
-            static string BuildDictionaryDeclaration(IndexedEnumValue[] enumValues, EnumClassProps props)
+            static string BuildDictionaryDeclaration(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
                 if (GetSearchMethodForStringKeys(enumValues, props) is not SearchMethod.Dictionary)
                     return "";
@@ -603,7 +619,7 @@ internal class EnumClassDeclarationTemplate
                 return dictAssignment;
             }
 
-            static string BuildDeserializers(IndexedEnumValue[] enumValues, EnumClassProps props)
+            static string BuildDeserializers(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
                 if (GetSearchMethodForStringKeys(enumValues, props) is SearchMethod.Dictionary)
                     return BuildDictionaryBasedDeserialization(enumValues, props);
@@ -611,7 +627,7 @@ internal class EnumClassDeclarationTemplate
                 return BuildIfChainBasedDeserialization(enumValues, props);
 
 
-                static string BuildDictionaryBasedDeserialization(IndexedEnumValue[] enumValues, EnumClassProps props)
+                static string BuildDictionaryBasedDeserialization(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
                     return $$"""
                         public static {{props.Definition.DeclarationName}}? Deserialize(string? serializedValue)
@@ -649,7 +665,7 @@ internal class EnumClassDeclarationTemplate
                     }
                 }
 
-                static string BuildIfChainBasedDeserialization(IndexedEnumValue[] enumValues, EnumClassProps props)
+                static string BuildIfChainBasedDeserialization(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
                     return $$"""
                         public static {{props.Definition.DeclarationName}}? Deserialize(string? serializedValue)
@@ -663,7 +679,7 @@ internal class EnumClassDeclarationTemplate
                         public static {{props.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
                             {{String.Join(Consts.Nl, enumValues.Select(enumValue
-                                => $"if (System.MemoryExtensions.Equals(serializedValue, System.MemoryExtensions.AsSpan({enumValue.Def.Name}._serializedName), System.StringComparison.Ordinal)) return {enumValue.Def.Name};"))}}
+                                => $"if (System.MemoryExtensions.Equals(serializedValue, System.MemoryExtensions.AsSpan({enumValue.Name}._serializedName), System.StringComparison.Ordinal)) return {enumValue.Name};"))}}
                             return null;
                         }
                         """;
@@ -672,14 +688,75 @@ internal class EnumClassDeclarationTemplate
 
         }
 
+
+        static bool CheckIfShouldIncludeUtf8EncodedResources(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => GetSearchMethodForUtf8Keys(enumValues, props) is SearchMethod.Dictionary
+                && props.Configuration.GenerateJsonConverter
+                && props.Definition.Meta.IsAlternateLookupSupported;
+
+        static string BuildUtf8EncodedResourcesWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
+        {
+            if (!CheckIfShouldIncludeUtf8EncodedResources(enumValues, props))
+                return "";
+
+            return $$"""
+                private static System.Collections.Frozen.FrozenDictionary<System.ReadOnlyMemory<byte>, {{props.Definition.DeclarationName}}>? _valuesBySerializedUtf8Name;
+                private static System.Collections.Frozen.FrozenDictionary<System.ReadOnlyMemory<byte>, {{props.Definition.DeclarationName}}>.AlternateLookup<System.ReadOnlySpan<byte>> {{ValuesBySerializedUtf8NameSpanLookupVariableName}};
+
+
+                {{BuildComparerDefinition()}}
+
+                """;
+
+
+
+            static string BuildComparerDefinition()
+            {
+                return """
+                    private sealed class Utf8MemoryComparer :
+                        System.Collections.Generic.IEqualityComparer<System.ReadOnlyMemory<byte>>,
+                        System.Collections.Generic.IAlternateEqualityComparer<System.ReadOnlySpan<byte>, System.ReadOnlyMemory<byte>>
+                    {
+                        public static Utf8MemoryComparer Instance { get; } = new();
+
+                        public bool Equals(
+                            System.ReadOnlyMemory<byte> x,
+                            System.ReadOnlyMemory<byte> y)
+                            => x.Span.SequenceEqual(y.Span);
+
+                        public int GetHashCode(System.ReadOnlyMemory<byte> value)
+                            => GetHashCode(value.Span);
+
+                        public bool Equals(
+                            System.ReadOnlySpan<byte> alternate,
+                            System.ReadOnlyMemory<byte> stored)
+                            => alternate.SequenceEqual(stored.Span);
+
+                        public int GetHashCode(System.ReadOnlySpan<byte> value)
+                        {
+                            var hash = new System.HashCode();
+                            hash.AddBytes(value);
+                            return hash.ToHashCode();
+                        }
+
+                        public System.ReadOnlyMemory<byte> Create(System.ReadOnlySpan<byte> value)
+                            => value.ToArray();
+                    }
+                    """;
+            }
+        }
+
+
         static bool CheckIfNumberedByUser(EnumClassCollector.Definition definition)
             => definition.OurAttributeType is EnumClassCollector.OurAttributeType.NumberedEnumClass;
 
-        static SearchMethod GetSearchMethodForStringKeys(IndexedEnumValue[] enumValues, EnumClassProps props)
+        static SearchMethod GetSearchMethodForStringKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
             => SearchMethodProvider.Get(props.Configuration, enumValues.Length, SearchMethodProvider.Target.StringKeys);
+
+        static SearchMethod GetSearchMethodForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => SearchMethodProvider.Get(props.Configuration, enumValues.Length, SearchMethodProvider.Target.Utf8Keys);
     }
 
-    private record struct IndexedEnumValue(
-        int DefaultIndex,
-        EnumValueCollector.Definition Def);
+
+    public const string ValuesBySerializedUtf8NameSpanLookupVariableName = "_valuesBySerializedUtf8NameSpanLookup";
 }
