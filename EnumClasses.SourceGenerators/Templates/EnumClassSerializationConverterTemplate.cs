@@ -61,7 +61,7 @@ internal class EnumClassSerializationConverterTemplate
                     {
                         var serializedName =
                             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
-                                value.NormalizedName,
+                                value.ExplicitSerializedName ?? value.NormalizedName,
                                 quote: true);
 
                         return

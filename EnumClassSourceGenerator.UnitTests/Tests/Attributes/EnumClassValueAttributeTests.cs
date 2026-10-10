@@ -315,6 +315,27 @@ public class EnumClassValueAttributeTests
         generatedSource.Should().NotContain("ValidateRuntimeIndexes();");
     }
 
+    [Fact]
+    public void ConstructorsAndSerializedNameProperty_ShouldExposeConfiguredValues()
+    {
+        var marker = new global::EnumClasses.EnumClassValueAttribute();
+        var indexed = new global::EnumClasses.EnumClassValueAttribute(4);
+        var named = new global::EnumClasses.EnumClassValueAttribute(7, "seven");
+        var propertyAssigned = new global::EnumClasses.EnumClassValueAttribute
+        {
+            SerializedName = "property-name"
+        };
+
+        marker.EnumIndex.Should().Be(0);
+        marker.SerializedName.Should().BeNull();
+        indexed.EnumIndex.Should().Be(4);
+        indexed.SerializedName.Should().BeNull();
+        named.EnumIndex.Should().Be(7);
+        named.SerializedName.Should().Be("seven");
+        propertyAssigned.EnumIndex.Should().Be(0);
+        propertyAssigned.SerializedName.Should().Be("property-name");
+    }
+
     private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(string source)
     {
         var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);

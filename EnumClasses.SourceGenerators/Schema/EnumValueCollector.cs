@@ -37,6 +37,7 @@ internal static class EnumValueCollector
         Location? ExplicitIndexAttributeLocation,
         string Name,
         string NormalizedName,
+        string? ExplicitSerializedName,
         Location Location,
         string? FullyQualifiedCustomType,
         bool HasSharedExplicitIndex,
@@ -89,12 +90,11 @@ internal static class EnumValueCollector
             })
             .Select(propertySyntax =>
             {
-                var enumClassValueAttribute = propertySyntax.AttributeLists.GetByName(
-                    SchemaConsts.AttributeNames.EnumClassValueFullyQualified,
+                var (valueAttribute, valueAttributeDefinition) = CollectEnumClassValueAttribute(
+                    attributes: propertySyntax.AttributeLists,
                     semanticModel,
                     token);
 
-                var explicitIndex = GetEnumIndex(enumClassValueAttribute, semanticModel, token);
 
                 var fieldType = propertySyntax.Type;
                 ITypeSymbol fieldTypeSymbol = semanticModel.GetTypeInfo(fieldType, token).Type!;
@@ -123,8 +123,9 @@ internal static class EnumValueCollector
                 return new CollectedValueData(
                     Name: name,
                     NormalizedName: normalizedName,
-                    ExplicitIndex: explicitIndex,
-                    ExplicitIndexAttributeLocation: explicitIndex.HasValue ? enumClassValueAttribute!.GetLocation() : null,
+                    SerializedName: valueAttributeDefinition.SerializedName,
+                    ExplicitIndex: valueAttributeDefinition.EnumIndex,
+                    ExplicitIndexAttributeLocation: valueAttributeDefinition.EnumIndex.HasValue ? valueAttribute!.GetLocation() : null,
                     Location: location,
                     FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                     HasSharedExplicitIndex: false,
@@ -182,12 +183,12 @@ internal static class EnumValueCollector
             })
             .SelectMany(fieldSyntax =>
             {
-                var enumClassValueAttribute = fieldSyntax.AttributeLists.GetByName(
-                    SchemaConsts.AttributeNames.EnumClassValueFullyQualified,
+                var (valueAttribute, valueAttributeDefinition) = CollectEnumClassValueAttribute(
+                    attributes: fieldSyntax.AttributeLists,
                     semanticModel,
                     token);
-                var explicitIndex = GetEnumIndex(enumClassValueAttribute, semanticModel, token);
-                var hasSharedExplicitIndex = explicitIndex.HasValue
+
+                var hasSharedExplicitIndex = valueAttributeDefinition.EnumIndex.HasValue
                     && fieldSyntax.Declaration.Variables.Count > 1;
 
                 var fieldType = fieldSyntax.Declaration.Type;
@@ -217,13 +218,14 @@ internal static class EnumValueCollector
                         reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
                     if (hasSharedExplicitIndex && variableIndex == 0)
-                        reports.Add(Diagnostics.ExplicitIndexCannotBeSharedByMultipleFields(enumClassValueAttribute!.GetLocation()));
+                        reports.Add(Diagnostics.ExplicitIndexCannotBeSharedByMultipleFields(valueAttribute!.GetLocation()));
 
                     return new CollectedValueData(
                         Name: name,
                         NormalizedName: normalizedName,
-                        ExplicitIndex: explicitIndex,
-                        ExplicitIndexAttributeLocation: explicitIndex.HasValue ? enumClassValueAttribute!.GetLocation() : null,
+                        SerializedName: valueAttributeDefinition.SerializedName,
+                        ExplicitIndex: valueAttributeDefinition.EnumIndex,
+                        ExplicitIndexAttributeLocation: valueAttributeDefinition.EnumIndex.HasValue ? valueAttribute!.GetLocation() : null,
                         Location: location,
                         FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                         HasSharedExplicitIndex: hasSharedExplicitIndex,
@@ -244,22 +246,27 @@ internal static class EnumValueCollector
         return conversion.Exists && conversion.IsImplicit;
     }
 
-    private static int? GetEnumIndex(
-        AttributeSyntax? enumClassValueAttribute,
+
+    private static (AttributeSyntax? Syntax, EnumValueAttributeCollector.Definition Definition) CollectEnumClassValueAttribute(
+        SyntaxList<AttributeListSyntax> attributes,
         SemanticModel semanticModel,
         CancellationToken token)
     {
-        if (enumClassValueAttribute is null)
-            return null;
+        var attributeSyntax = attributes.GetByName(
+            SchemaConsts.AttributeNames.EnumClassValueFullyQualified,
+            semanticModel,
+            token);
 
-        var arguments = enumClassValueAttribute.ArgumentList?.Arguments;
-        if (arguments is null || arguments.Value.Count != 1)
-            return null;
+        if (attributeSyntax is null)
+            return (null, new EnumValueAttributeCollector.Definition());
 
-        var constantValue = semanticModel.GetConstantValue(arguments.Value[0].Expression, token);
-        return constantValue.HasValue && constantValue.Value is int enumIndex
-            ? enumIndex
-            : null;
+        return (
+            Syntax: attributeSyntax,
+            Definition: EnumValueAttributeCollector.Collect(
+                attributeSyntax,
+                semanticModel,
+                token)
+        );
     }
 
 
@@ -383,6 +390,7 @@ internal static class EnumValueCollector
                 ExplicitIndexAttributeLocation: valueData.ExplicitIndexAttributeLocation,
                 Name: valueData.Name,
                 NormalizedName: valueData.NormalizedName,
+                ExplicitSerializedName: valueData.SerializedName,
                 Location: valueData.Location,
                 FullyQualifiedCustomType: valueData.FullyQualifiedCustomType,
                 HasSharedExplicitIndex: valueData.HasSharedExplicitIndex,
@@ -398,6 +406,7 @@ internal static class EnumValueCollector
     private record struct CollectedValueData(
         string Name,
         string NormalizedName,
+        string? SerializedName,
         int? ExplicitIndex,
         Location? ExplicitIndexAttributeLocation,
         Location Location,

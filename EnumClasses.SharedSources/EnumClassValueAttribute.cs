@@ -32,6 +32,19 @@ public sealed class EnumClassValueAttribute : Attribute
         EnumIndex = enumIndex;
     }
 
+    /// <summary>
+    /// Initializes the attribute with an explicit compile-time index and serialized name.
+    /// </summary>
+    /// <param name="enumIndex">The index assigned to this value.</param>
+    /// <param name="serializedName">The name used when serializing this value.</param>
+    public EnumClassValueAttribute(int enumIndex, string serializedName) : this(enumIndex)
+    {
+        SerializedName = serializedName;
+    }
+
     /// <summary>Gets the explicit compile-time index.</summary>
     public int EnumIndex { get; }
+
+    /// <summary>Gets or sets the name used when serializing this value.</summary>
+    public string? SerializedName { get; set; }
 }

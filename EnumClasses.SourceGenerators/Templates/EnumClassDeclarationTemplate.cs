@@ -175,7 +175,7 @@ internal class EnumClassDeclarationTemplate
                 
                     {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._internalIndex = {enumValue.InternalIndex};"))}}
                 
-                    {{string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._serializedName = nameof({enumValue.Name});"))}}
+                    {{BuildSerializedNamesAssignment(enumValues)}}
                 
                     {{(props.Configuration.GenerateRawEnum
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._rawValue = Raw.{enumValue.Name};"))
@@ -193,6 +193,19 @@ internal class EnumClassDeclarationTemplate
                     {{BuildRuntimeIndexAssignmentValidationWhenApplicable(enumValues, props)}}
                 }
                 """;
+
+            static string BuildSerializedNamesAssignment(EnumValueDefinition[] enumValues)
+            {
+                return string.Join(Consts.Nl, enumValues.Select(enumValue
+                    => $"{enumValue.Name}._serializedName = {GetEnumValueSerializedName(enumValue)};"));
+
+                static string GetEnumValueSerializedName(EnumValueDefinition enumValue)
+                    => enumValue.ExplicitSerializedName is not null
+                        ? Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
+                            enumValue.ExplicitSerializedName,
+                            quote: true)
+                        : $"nameof({enumValue.Name})";
+            }
 
             static string BuildSerializationDictionaryAssignmentWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
