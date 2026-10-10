@@ -7,6 +7,118 @@ namespace EnumClassSourceGenerator.UnitTests.Tests;
 public class EnumClassDefaultsAttributeTests
 {
     [Fact]
+    public void When_DocumentationModeUsesBuiltInDefault_Then_ShouldListCompileTimeIndexes()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class DocumentedEnum
+            {
+                [EnumClassValue(10)]
+                public static DocumentedEnum Ten { get; } = new();
+
+                public static DocumentedEnum Eleven { get; } = new();
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        var generatedSource = GetGeneratedSource(result, "Consumer.DocumentedEnum.g.cs");
+        generatedSource.Should().Contain("Declared values and their compile-time indexes:");
+        generatedSource.Should().Contain("///     <term><see cref=\"Ten\"/></term>");
+        generatedSource.Should().Contain("///     <description>10</description>");
+        generatedSource.Should().Contain("///     <term><see cref=\"Eleven\"/></term>");
+        generatedSource.Should().Contain("///     <description>11</description>");
+    }
+
+    [Fact]
+    public void When_EnumClassDisablesDocumentation_Then_ShouldNotGenerateIndexRemarks()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                DocumentationMode = DocumentationMode.Disabled)]
+            internal partial class UndocumentedEnum
+            {
+                public static UndocumentedEnum One { get; } = new();
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        GetGeneratedSource(result, "Consumer.UndocumentedEnum.g.cs")
+            .Should().NotContain("Declared values and their compile-time indexes:");
+    }
+
+    [Fact]
+    public void When_EnumClassOverridesDisabledAssemblyDocumentation_Then_ShouldGenerateIndexRemarks()
+    {
+        const string source = """
+            using EnumClasses;
+
+            [assembly: EnumClassDefaults(DocumentationMode = DocumentationMode.Disabled)]
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class InheritsDisabledDocumentation
+            {
+                public static InheritsDisabledDocumentation One { get; } = new();
+            }
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                DocumentationMode = DocumentationMode.ListCompileTimeIndexes)]
+            internal partial class OverridesDocumentation
+            {
+                public static OverridesDocumentation One { get; } = new();
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        GetGeneratedSource(result, "Consumer.InheritsDisabledDocumentation.g.cs")
+            .Should().NotContain("Declared values and their compile-time indexes:");
+        GetGeneratedSource(result, "Consumer.OverridesDocumentation.g.cs")
+            .Should().Contain("Declared values and their compile-time indexes:");
+    }
+
+    [Fact]
+    public void When_IndexesAreAssignedAtRuntime_Then_ShouldNotDocumentCompileTimeIndexes()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit,
+                DocumentationMode = DocumentationMode.ListCompileTimeIndexes)]
+            internal partial class RuntimeIndexedEnum
+            {
+                public static RuntimeIndexedEnum One { get; } = new() { EnumIndex = 42 };
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        GetGeneratedSource(result, "Consumer.RuntimeIndexedEnum.g.cs")
+            .Should().NotContain("Declared values and their compile-time indexes:");
+    }
+
+    [Fact]
     public void When_AssemblyDefaultsAreSpecified_Then_ShouldApplyThemToEveryEnumClass()
     {
         const string source = """

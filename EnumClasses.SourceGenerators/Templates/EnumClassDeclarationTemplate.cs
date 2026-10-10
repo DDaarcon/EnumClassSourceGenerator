@@ -75,6 +75,8 @@ internal class EnumClassDeclarationTemplate
             #nullable enable
             namespace {{definition.NamespaceName}}
             {
+
+                {{BuildRemarksWhenAppliable(enumValues, props)}}
                 {{(props.Configuration.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({definition.DeclarationName}.JsonConverter))]" : "")}}
                 {{definition.Modifier}} partial class {{definition.DeclarationName}} : System.IEquatable<{{definition.DeclarationName}}>
                 {
@@ -993,6 +995,43 @@ internal class EnumClassDeclarationTemplate
                         public System.ReadOnlyMemory<byte> Create(System.ReadOnlySpan<byte> value)
                             => value.ToArray();
                     }
+                    """;
+            }
+        }
+
+
+
+        static string BuildRemarksWhenAppliable(EnumValueDefinition[] enumValues, EnumClassProps props)
+        {
+            if (props.Configuration.DocumentationMode is DocumentationMode.Disabled)
+                return "";
+
+            if (props.Configuration.IndexAssignmentMode is not IndexAssignmentMode.CompileTime)
+            {
+                // nothing worth remarking
+                return "";
+            }
+
+            return $$"""
+                /// <remarks>
+                /// Declared values and their compile-time indexes:
+                /// <list type="table">
+                ///   <listheader>
+                ///     <term>Value</term>
+                ///     <description>Enum index</description>
+                ///   </listheader>
+                {{string.Join(Consts.Nl, enumValues.Select(enumValue => BuildValueListItem(enumValue)))}}
+                /// </list>
+                /// </remarks>
+                """;
+
+            static string BuildValueListItem(EnumValueDefinition enumValue)
+            {
+                return $$"""
+                    ///   <item>
+                    ///     <term><see cref="{{enumValue.Name}}"/></term>
+                    ///     <description>{{enumValue.ResolvedIndex}}</description>
+                    ///   </item>
                     """;
             }
         }

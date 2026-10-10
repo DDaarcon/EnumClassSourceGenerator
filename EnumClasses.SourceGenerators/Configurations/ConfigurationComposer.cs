@@ -8,5 +8,6 @@ internal static class ConfigurationComposer
             instance.GenerateRawEnum ?? defaults.GenerateRawEnum,
             instance.LookupMode ?? defaults.LookupMode,
             instance.ConstructionRestrictionMode ?? defaults.ConstructionRestrictionMode,
-            instance.IndexAssignmentMode ?? defaults.IndexAssignmentMode);
+            instance.IndexAssignmentMode ?? defaults.IndexAssignmentMode,
+            instance.DocumentationMode ?? defaults.DocumentationMode);
 }

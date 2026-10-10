@@ -66,5 +66,14 @@ namespace EnumClasses
         /// The built-in default is <see cref="EnumClasses.IndexAssignmentMode.CompileTime"/>.
         /// </remarks>
         public IndexAssignmentMode IndexAssignmentMode { get; set; } = EnumClassDefaultsAttribute.DefaultIndexAssignmentMode;
+
+        /// <summary>
+        /// Gets or sets whether additional XML documentation is generated for the enum class.
+        /// </summary>
+        /// <remarks>
+        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.DocumentationMode"/> is used.
+        /// The built-in default is <see cref="EnumClasses.DocumentationMode.ListCompileTimeIndexes"/>.
+        /// </remarks>
+        public DocumentationMode DocumentationMode { get; set; } = EnumClassDefaultsAttribute.DefaultDocumentationMode;
     }
 }

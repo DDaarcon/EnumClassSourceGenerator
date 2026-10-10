@@ -265,14 +265,13 @@ internal static class EnumClassCollector
             .GetEnumProperty<IndexAssignmentMode>(nameof(EnumClassAttribute.IndexAssignmentMode));
         configurationDiagnostic = GetInvalidIndexAssignmentModeDiagnostic(attribute, indexAssignmentMode);
 
-        return new ConfigurationOverrides
-        {
-            GenerateJsonConverter = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter)),
-            GenerateRawEnum = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
-            LookupMode = attribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
-            ConstructionRestrictionMode = attribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
-            IndexAssignmentMode = indexAssignmentMode
-        };
+        return new ConfigurationOverrides(
+            GenerateJsonConverter: attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter)),
+            GenerateRawEnum: attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
+            LookupMode: attribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
+            ConstructionRestrictionMode: attribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
+            IndexAssignmentMode: indexAssignmentMode,
+            DocumentationMode: attribute.NamedArguments.GetEnumProperty<DocumentationMode>(nameof(EnumClassAttribute.DocumentationMode)));
     }
 
     private static Diagnostic? GetInvalidIndexAssignmentModeDiagnostic(

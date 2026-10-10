@@ -18,7 +18,8 @@ internal static class EnumClassDefaultsCollector
             EnumClassDefaultsAttribute.DefaultGenerateRawEnum,
             EnumClassDefaultsAttribute.DefaultLookupMode,
             EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode,
-            EnumClassDefaultsAttribute.DefaultIndexAssignmentMode);
+            EnumClassDefaultsAttribute.DefaultIndexAssignmentMode,
+            EnumClassDefaultsAttribute.DefaultDocumentationMode);
 
         var attributes = assemblySymbol.GetAttributes();
         if (attributes.Length == 0)
@@ -44,7 +45,8 @@ internal static class EnumClassDefaultsCollector
             GenerateRawEnum = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
             LookupMode = defaultsAttribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
             ConstructionRestrictionMode = defaultsAttribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
-            IndexAssignmentMode = indexAssignmentMode
+            IndexAssignmentMode = indexAssignmentMode,
+            DocumentationMode = defaultsAttribute.NamedArguments.GetEnumProperty<DocumentationMode>(nameof(EnumClassAttribute.DocumentationMode))
         };
 
         return new(ConfigurationComposer.Compose(newValues, defaultValues), diagnostics);
