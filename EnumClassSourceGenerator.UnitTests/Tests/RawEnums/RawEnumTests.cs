@@ -70,12 +70,12 @@ public class RawEnumTests
     }
 
     [Fact]
-    public void When_ConvertingNumberedRawValue_Then_ShouldMapByMemberRatherThanEnumIndex()
+    public void When_ConvertingRuntimeIndexedRawValue_Then_ShouldMapByMemberRatherThanEnumIndex()
     {
-        NumberedRawEnum.FromRaw(NumberedRawEnum.Raw.Ten).Should().BeSameAs(NumberedRawEnum.Ten);
-        NumberedRawEnum.Twenty.ToRaw().Should().Be(NumberedRawEnum.Raw.Twenty);
+        RuntimeIndexedRawEnum.FromRaw(RuntimeIndexedRawEnum.Raw.Ten).Should().BeSameAs(RuntimeIndexedRawEnum.Ten);
+        RuntimeIndexedRawEnum.Twenty.ToRaw().Should().Be(RuntimeIndexedRawEnum.Raw.Twenty);
 
-        ((int)NumberedRawEnum.Raw.Ten).Should().Be(0);
-        NumberedRawEnum.Ten.EnumIndex.Should().Be(10);
+        ((int)RuntimeIndexedRawEnum.Raw.Ten).Should().Be(0);
+        RuntimeIndexedRawEnum.Ten.EnumIndex.Should().Be(10);
     }
 }

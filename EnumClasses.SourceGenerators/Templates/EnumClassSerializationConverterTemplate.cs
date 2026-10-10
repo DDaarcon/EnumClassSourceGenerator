@@ -1,4 +1,5 @@
-﻿using EnumClasses.SourceGenerators.GenerationStrategies;
+﻿using EnumClasses.SourceGenerators.FeatureSupport;
+using EnumClasses.SourceGenerators.GenerationStrategies;
 using System.Linq;
 using EnumClassProps = EnumClasses.SourceGenerators.Schema.EnumClassCollector.Definition.WithConfig;
 using EnumValueDefinition = EnumClasses.SourceGenerators.Schema.EnumValueCollector.Definition;
@@ -88,7 +89,7 @@ internal class EnumClassSerializationConverterTemplate
 
             static string BuildDictionaryLogic(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (!props.Definition.Meta.IsAlternateLookupSupported)
+                if (!props.Definition.FeatureSupport.AlternateLookup.IsSupported)
                     return BuildIfChainLogic(enumValues, props); // fallback to ifs
 
 
@@ -102,8 +103,7 @@ internal class EnumClassSerializationConverterTemplate
 
         static string BuildUtf8JsonReadingHelpWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
-            if (GetLookupImplementationForUtf8Keys(enumValues, props) is not LookupImplementation.Dictionary
-                || !props.Definition.Meta.IsAlternateLookupSupported)
+            if (GetLookupImplementationForUtf8Keys(enumValues, props) is not LookupImplementation.Dictionary)
             {
                 return "";
             }

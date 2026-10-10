@@ -1,4 +1,5 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.Schema.Help;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -14,14 +15,14 @@ internal static class EnumClassCollector
 {
     public record struct Definition(
         Definition.StatusCode Status,
-        OurAttributeType OurAttributeType,
         Location? Location = null,
+        Location? AttributeLocation = null,
         string? DeclarationName = null,
         string? NamespaceName = null,
         string? Modifier = null,
         bool HasExplicitInstanceConstructor = false,
         EnumValueCollector.CollectResult EnumValues = default,
-        Definition.Metadata Meta = default,
+        FeatureSupportState FeatureSupport = default,
         bool IsAlternateLookupSupported = false,
 
         IEnumerable<Diagnostic>? DiagnosticReports = null)
@@ -36,9 +37,6 @@ internal static class EnumClassCollector
             InvalidValues
         }
 
-        public record struct Metadata(
-            bool IsAlternateLookupSupported);
-
         public record struct WithConfig(
             Definition Definition,
             ConfigurationOverrides ConfigurationOverrides,
@@ -48,25 +46,19 @@ internal static class EnumClassCollector
 
 
     public record struct OurAttribute(
-        OurAttributeType Type,
         AttributeData Data);
-
-    public enum OurAttributeType
-    {
-        None,
-        EnumClass,
-        NumberedEnumClass
-    }
 
 
     public static Definition.WithConfig CollectDefinition(ClassDeclarationSyntax component, ISymbol componentSymbol, OurAttribute attribute, SemanticModel semanticModel, CancellationToken token)
     {
-        var instanceConfig = CollectInstanceConfiguration(attribute.Data);
+        var instanceConfig = CollectInstanceConfiguration(attribute.Data, out var configurationDiagnostic);
         var configDefaults = CollectDefaultConfiguration(componentSymbol.ContainingAssembly);
 
         var config = ConfigurationComposer.Compose(instanceConfig, configDefaults);
 
         var declarationLocation = component.Identifier.GetLocation();
+        var attributeLocation = attribute.Data.ApplicationSyntaxReference?.GetSyntax(token).GetLocation()
+            ?? declarationLocation;
         var declarationName = component.Identifier.ValueText;
 
         var namespaceName = GetNamespaceDeclaration(componentSymbol);
@@ -87,9 +79,11 @@ internal static class EnumClassCollector
             : explicitInstanceConstructors
                 .Where(constructor => constructor.DeclaredAccessibility is not (Accessibility.Private or Accessibility.Protected));
 
-        var metadata = CollectMetadata(semanticModel);
+        var featureSupport = CollectFeatureSupport(semanticModel);
 
         var reports = new List<Diagnostic>();
+        if (configurationDiagnostic is not null)
+            reports.Add(configurationDiagnostic);
 
         bool isNested = component.Parent is TypeDeclarationSyntax;
         if (isNested)
@@ -114,20 +108,28 @@ internal static class EnumClassCollector
                     constructor.Locations.FirstOrDefault() ?? declarationLocation,
                     declarationName)));
 
-        Span<bool> checks = stackalloc bool[] { isNested, isGeneric, isNamespaceMissing, areAccessorsMissing, areInvalidConstructorsDefined };
+        Span<bool> checks = stackalloc bool[]
+        {
+            isNested,
+            isGeneric,
+            isNamespaceMissing,
+            areAccessorsMissing,
+            areInvalidConstructorsDefined,
+            configurationDiagnostic is not null
+        };
 
         if (IsAnyTrue(checks))
         {
             return new(
                 new Definition(
                     Status: Definition.StatusCode.InvalidClassDeclaration,
-                    OurAttributeType: attribute.Type,
                     Location: declarationLocation,
+                    AttributeLocation: attributeLocation,
                     DeclarationName: component.Identifier.ValueText,
                     NamespaceName: namespaceName,
                     Modifier: accessModifiers.FirstOrDefault().Text,
                     HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
-                    Meta: metadata,
+                    FeatureSupport:featureSupport,
                     DiagnosticReports: reports),
                 instanceConfig,
                 config
@@ -152,13 +154,13 @@ internal static class EnumClassCollector
             return new(
                 new Definition(
                     Status: Definition.StatusCode.InvalidClassDeclaration,
-                    OurAttributeType: attribute.Type,
                     Location: declarationLocation,
+                    AttributeLocation: attributeLocation,
                     DeclarationName: declarationName,
                     NamespaceName: namespaceName,
                     Modifier: accessModifiers.First().Text,
                     HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
-                    Meta: metadata,
+                    FeatureSupport: featureSupport,
                     DiagnosticReports: reports),
                 instanceConfig,
                 config
@@ -176,14 +178,14 @@ internal static class EnumClassCollector
                 Status: enumValuesDiagnosticReports.Length > 0
                     ? Definition.StatusCode.InvalidValues
                     : Definition.StatusCode.Ok,
-                OurAttributeType: attribute.Type,
                 Location: component.GetLocation(),
+                AttributeLocation: attributeLocation,
                 NamespaceName: namespaceName,
                 DeclarationName: component.Identifier.ValueText,
                 Modifier: accessModifiers.First().Text,
                 HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
                 EnumValues: enumValuesCollectionResult,
-                Meta: metadata,
+                FeatureSupport: featureSupport,
                 DiagnosticReports: enumValuesDiagnosticReports),
             instanceConfig,
             config
@@ -198,6 +200,51 @@ internal static class EnumClassCollector
         }
     }
 
+    public static Definition.WithConfig ResolveConfiguration(Definition.WithConfig collectedDefinition, Configuration configuration)
+    {
+        var definition = collectedDefinition.Definition;
+        Diagnostic[] configurationDiagnostics = configuration is
+            { IndexAssignmentMode: IndexAssignmentMode.Runtime, GenerateRawEnum: true }
+                ? [Diagnostics.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation)]
+                : [];
+
+        if (definition.Status is Definition.StatusCode.InvalidClassDeclaration)
+        {
+            return collectedDefinition with
+            {
+                Definition = definition with
+                {
+                    DiagnosticReports = (definition.DiagnosticReports ?? [])
+                        .Concat(configurationDiagnostics)
+                        .ToArray()
+                },
+                Configuration = configuration
+            };
+        }
+
+        var resolvedValues = EnumValueCollector.ResolveIndexes(
+            definition.EnumValues,
+            configuration,
+            definition.DeclarationName!);
+        var diagnostics = resolvedValues.Definitions
+            .SelectMany(value => value.DiagnosticReports ?? [])
+            .Concat(configurationDiagnostics)
+            .ToArray();
+
+        return collectedDefinition with
+        {
+            Definition = definition with
+            {
+                Status = diagnostics.Length > 0
+                    ? Definition.StatusCode.InvalidValues
+                    : Definition.StatusCode.Ok,
+                EnumValues = resolvedValues,
+                DiagnosticReports = diagnostics
+            },
+            Configuration = configuration
+        };
+    }
+
 
 
     private static string? GetNamespaceDeclaration(ISymbol componentSymbol)
@@ -209,59 +256,55 @@ internal static class EnumClassCollector
     }
 
 
-    private static ConfigurationOverrides CollectInstanceConfiguration(AttributeData attribute)
+    private static ConfigurationOverrides CollectInstanceConfiguration(
+        AttributeData attribute,
+        out Diagnostic? configurationDiagnostic)
     {
+        var indexAssignmentMode = attribute.NamedArguments
+            .GetEnumProperty<IndexAssignmentMode>(nameof(EnumClassAttribute.IndexAssignmentMode));
+        configurationDiagnostic = GetInvalidIndexAssignmentModeDiagnostic(attribute, indexAssignmentMode);
+
         return new ConfigurationOverrides
         {
             GenerateJsonConverter = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateJsonConverter)),
             GenerateRawEnum = attribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
             LookupMode = attribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
             ConstructionRestrictionMode = attribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
-            RequireIndexAssignmentInInitializer = attribute.NamedArguments.GetBooleanProperty(nameof(NumberedEnumClassAttribute.RequireIndexAssignmentInInitializer)),
+            IndexAssignmentMode = indexAssignmentMode
         };
     }
 
+    private static Diagnostic? GetInvalidIndexAssignmentModeDiagnostic(
+        AttributeData attribute,
+        IndexAssignmentMode? indexAssignmentMode)
+    {
+        var namedArgument = attribute.NamedArguments
+            .FirstOrDefault(x => x.Key == nameof(EnumClassAttribute.IndexAssignmentMode));
+
+        if (namedArgument.Key is null
+            || indexAssignmentMode.HasValue
+            || namedArgument.Value.Value is not int invalidValue)
+        {
+            return null;
+        }
+
+        return Diagnostics.UnsupportedIndexAssignmentMode(
+            attribute.GetNamedArgumentValueLocation(nameof(EnumClassAttribute.IndexAssignmentMode)),
+            invalidValue);
+    }
+
     private static Configuration CollectDefaultConfiguration(IAssemblySymbol assembly)
-        => EnumClassDefaultsCollector.Collect(assembly);
+        => EnumClassDefaultsCollector.Collect(assembly).Configuration;
 
 
 
-    private static Definition.Metadata CollectMetadata(SemanticModel semanticModel)
+    private static FeatureSupportState CollectFeatureSupport(SemanticModel semanticModel)
     {
         var compilation = semanticModel.Compilation;
         var parseOptions = (CSharpParseOptions) semanticModel.SyntaxTree.Options;
 
-        return new Definition.Metadata(
-            IsAlternateLookupSupported: CheckIfSupportsAlternateLookup(compilation, parseOptions));
+        return FeaturesSupportResolver.GetSupportState(compilation, parseOptions);
     }
 
-    /// <summary>
-    /// .NET 9+
-    /// </summary>
-    private static bool CheckIfSupportsAlternateLookup(
-        Compilation compilation,
-        CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion < LanguageVersion.CSharp13)
-            return false;
 
-        var alternateComparer = compilation.GetTypeByMetadataName(
-            "System.Collections.Generic.IAlternateEqualityComparer`2");
-
-        if (alternateComparer is null)
-            return false;
-
-        var frozenDictionary = compilation.GetTypeByMetadataName(
-            "System.Collections.Frozen.FrozenDictionary`2");
-
-        if (frozenDictionary is null)
-            return false;
-
-        return frozenDictionary
-            .GetMembers("GetAlternateLookup")
-            .OfType<IMethodSymbol>()
-            .Any(method =>
-                method.Arity == 1 &&
-                method.Parameters.Length == 0);
-    }
 }

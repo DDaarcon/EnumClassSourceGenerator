@@ -10,6 +10,20 @@ namespace EnumClasses.SourceGenerators.Schema.Help;
 
 internal static class SyntaxExtensions
 {
+    extension (AttributeData attribute)
+    {
+        public Location? GetNamedArgumentValueLocation(string propertyName)
+        {
+            if (attribute.ApplicationSyntaxReference?.GetSyntax() is not AttributeSyntax attributeSyntax)
+                return null;
+
+            var argument = attributeSyntax.ArgumentList?.Arguments
+                .FirstOrDefault(x => x.NameEquals?.Name.Identifier.ValueText == propertyName);
+
+            return argument?.Expression.GetLocation() ?? attributeSyntax.GetLocation();
+        }
+    }
+
     extension (SyntaxList<AttributeListSyntax> attributesList)
     {
         public bool TryGetByName(string fullyQualifiedName, SemanticModel semanticModel, CancellationToken cancellationToken, out AttributeSyntax attribute)

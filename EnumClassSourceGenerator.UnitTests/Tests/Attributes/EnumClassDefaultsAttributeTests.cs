@@ -17,42 +17,51 @@ public class EnumClassDefaultsAttributeTests
                 GenerateRawEnum = true,
                 LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.WithPrivateDefaultConstructor,
-                RequireIndexAssignmentInInitializer = false)]
+                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
 
             namespace Consumer;
 
             [EnumClass]
             internal partial class BasicEnum
             {
-                public static BasicEnum One { get; } = new();
+                public static BasicEnum One { get; } = new() { EnumIndex = 1 };
             }
 
-            [NumberedEnumClass]
-            internal partial class NumberedEnum
+            [EnumClass]
+            internal partial class RuntimeIndexedEnum
             {
-                public static NumberedEnum Ten { get; } = new() { EnumIndex = 10 };
+                public static RuntimeIndexedEnum Ten { get; } = new() { EnumIndex = 10 };
             }
             """;
 
         var (_, result, outputCompilation) = RunGenerator(source);
 
         result.Diagnostics.Should().NotContain(x => x.Severity == DiagnosticSeverity.Error);
+        var rawIndexMismatchWarnings = result.Diagnostics
+            .Where(x => x.Id == "ENUMCLGEN015")
+            .ToArray();
+        rawIndexMismatchWarnings.Should().HaveCount(2);
+        rawIndexMismatchWarnings.Should().OnlyContain(x =>
+            x.Severity == DiagnosticSeverity.Warning
+            && x.GetMessage() == "Runtime EnumIndex values may not match the numeric values of the generated Raw enum, whose values follow declaration order");
+        rawIndexMismatchWarnings.Select(x => x.Location.SourceTree!.GetText().ToString(x.Location.SourceSpan))
+            .Should().OnlyContain(attributeText => attributeText == "EnumClass");
         GetErrors(outputCompilation).Should().BeEmpty();
         result.GeneratedSources.Select(x => x.HintName).Should().BeEquivalentTo(
             "Consumer.BasicEnum.g.cs",
-            "Consumer.NumberedEnum.g.cs");
+            "Consumer.RuntimeIndexedEnum.g.cs");
 
         var basicSource = GetGeneratedSource(result, "Consumer.BasicEnum.g.cs");
         basicSource.Should().Contain("private BasicEnum() { }");
         basicSource.Should().Contain("public enum Raw");
         basicSource.Should().Contain("FrozenDictionary.ToFrozenDictionary");
+        basicSource.Should().Contain("public required int EnumIndex");
 
-        var numberedSource = GetGeneratedSource(result, "Consumer.NumberedEnum.g.cs");
-        numberedSource.Should().Contain("private NumberedEnum() { }");
-        numberedSource.Should().Contain("public enum Raw");
-        numberedSource.Should().Contain("FrozenDictionary.ToFrozenDictionary");
-        numberedSource.Should().Contain("public int EnumIndex");
-        numberedSource.Should().NotContain("public required int EnumIndex");
+        var runtimeIndexedSource = GetGeneratedSource(result, "Consumer.RuntimeIndexedEnum.g.cs");
+        runtimeIndexedSource.Should().Contain("private RuntimeIndexedEnum() { }");
+        runtimeIndexedSource.Should().Contain("public enum Raw");
+        runtimeIndexedSource.Should().Contain("FrozenDictionary.ToFrozenDictionary");
+        runtimeIndexedSource.Should().Contain("public required int EnumIndex");
     }
 
     [Fact]
@@ -66,16 +75,16 @@ public class EnumClassDefaultsAttributeTests
                 GenerateRawEnum = true,
                 LookupMode = LookupMode.ForceIfChain,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.WithPrivateDefaultConstructor,
-                RequireIndexAssignmentInInitializer = false)]
+                IndexAssignmentMode = IndexAssignmentMode.CompileTime)]
 
             namespace Consumer;
 
-            [NumberedEnumClass(
+            [EnumClass(
                 GenerateJsonConverter = true,
                 GenerateRawEnum = false,
                 LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.Off,
-                RequireIndexAssignmentInInitializer = true)]
+                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
             internal partial class LocallyConfiguredEnum
             {
                 public static LocallyConfiguredEnum One { get; } = new() { EnumIndex = 1 };
@@ -85,6 +94,7 @@ public class EnumClassDefaultsAttributeTests
         var (_, result, _) = RunGenerator(source);
 
         result.Diagnostics.Should().NotContain(x => x.Severity == DiagnosticSeverity.Error);
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN015");
         result.GeneratedSources.Select(x => x.HintName).Should().BeEquivalentTo(
             "Consumer.LocallyConfiguredEnum.g.cs",
             "Consumer.LocallyConfiguredEnumJsonConverter.g.cs");
@@ -94,6 +104,100 @@ public class EnumClassDefaultsAttributeTests
         generatedSource.Should().Contain("public required int EnumIndex");
         generatedSource.Should().NotContain("public enum Raw");
         generatedSource.Should().Contain("FrozenDictionary.ToFrozenDictionary");
+    }
+
+    [Fact]
+    public void When_RuntimeIndexesAndRawEnumAreEnabledLocally_Then_ShouldWarnOnEnumClassAttribute()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                GenerateRawEnum = true,
+                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+            internal partial class RuntimeRawEnum
+            {
+                public static RuntimeRawEnum Ten { get; } = new() { EnumIndex = 10 };
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        var warning = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN015")
+            .Which;
+        warning.Severity.Should().Be(DiagnosticSeverity.Warning);
+        warning.GetMessage().Should().Be(
+            "Runtime EnumIndex values may not match the numeric values of the generated Raw enum, whose values follow declaration order");
+        warning.Location.SourceTree!.GetText().ToString(warning.Location.SourceSpan)
+            .Should().StartWith("EnumClass(");
+        GetErrors(outputCompilation).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void When_EnumClassUsesUnsupportedIndexAssignmentMode_Then_ShouldReportErrorAtConfiguredValue()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = (IndexAssignmentMode)99)]
+            internal partial class InvalidModeEnum
+            {
+                public static InvalidModeEnum One { get; } = new();
+            }
+            """;
+
+        var (_, result, _) = RunGenerator(source);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN016")
+            .Which;
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().Should().Be(
+            "IndexAssignmentMode value '99' is not supported; use CompileTime or Runtime");
+        diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
+            .Should().Be("(IndexAssignmentMode)99");
+        result.GeneratedSources.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void When_AssemblyDefaultUsesUnsupportedIndexAssignmentMode_Then_ShouldReportErrorAndUseBuiltInDefault()
+    {
+        const string source = """
+            using EnumClasses;
+
+            [assembly: EnumClassDefaults(IndexAssignmentMode = (IndexAssignmentMode)99)]
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class InvalidDefaultModeEnum
+            {
+                public static InvalidDefaultModeEnum One { get; } = new();
+            }
+            """;
+
+        var (_, result, outputCompilation) = RunGenerator(source);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN016")
+            .Which;
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().Should().Be(
+            "IndexAssignmentMode value '99' is not supported; use CompileTime or Runtime");
+        diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
+            .Should().Be("(IndexAssignmentMode)99");
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        GetGeneratedSource(result, "Consumer.InvalidDefaultModeEnum.g.cs")
+            .Should().Contain("One.EnumIndex = 0;");
     }
 
     [Fact]
@@ -170,6 +274,80 @@ public class EnumClassDefaultsAttributeTests
     }
 
     [Fact]
+    public void When_IndexAssignmentDefaultChangesWithoutChangingEnumDeclaration_Then_ShouldResolveIndexesAgain()
+    {
+        const string enumSource = """
+            using EnumClasses;
+            using System.Diagnostics.CodeAnalysis;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class ReconfiguredEnum
+            {
+                [SetsRequiredMembers]
+                private ReconfiguredEnum()
+                {
+                }
+
+                [EnumClassValue(10)]
+                public static ReconfiguredEnum Ten { get; } = new();
+
+                public static ReconfiguredEnum Eleven { get; } = new();
+            }
+            """;
+
+        const string runtimeDefaultsSource = """
+            using EnumClasses;
+
+            [assembly: EnumClassDefaults(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+            """;
+
+        const string compileTimeDefaultsSource = """
+            using EnumClasses;
+
+            [assembly: EnumClassDefaults(IndexAssignmentMode = IndexAssignmentMode.CompileTime)]
+            """;
+
+        var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        var enumSyntaxTree = CSharpSyntaxTree.ParseText(enumSource, parseOptions, path: "ReconfiguredEnum.cs");
+        var runtimeDefaultsSyntaxTree = CSharpSyntaxTree.ParseText(runtimeDefaultsSource, parseOptions, path: "Defaults.cs");
+        var initialCompilation = CreateCompilation([enumSyntaxTree, runtimeDefaultsSyntaxTree]);
+        var driver = CreateDriver(parseOptions);
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            initialCompilation,
+            out var runtimeOutputCompilation,
+            out _);
+
+        var runtimeResult = driver.GetRunResult().Results.Single();
+        GetErrors(runtimeOutputCompilation).Should().BeEmpty();
+        var runtimeGeneratedSource = GetGeneratedSource(runtimeResult, "Consumer.ReconfiguredEnum.g.cs");
+        runtimeGeneratedSource.Should().Contain("public required int EnumIndex");
+        runtimeGeneratedSource.Should().NotContain("Ten.EnumIndex = 10;");
+
+        var compileTimeDefaultsSyntaxTree = CSharpSyntaxTree.ParseText(
+            compileTimeDefaultsSource,
+            parseOptions,
+            path: "Defaults.cs");
+        var updatedCompilation = initialCompilation.ReplaceSyntaxTree(
+            runtimeDefaultsSyntaxTree,
+            compileTimeDefaultsSyntaxTree);
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            updatedCompilation,
+            out var compileTimeOutputCompilation,
+            out _);
+
+        var compileTimeResult = driver.GetRunResult().Results.Single();
+        GetErrors(compileTimeOutputCompilation).Should().BeEmpty();
+        var compileTimeGeneratedSource = GetGeneratedSource(compileTimeResult, "Consumer.ReconfiguredEnum.g.cs");
+        compileTimeGeneratedSource.Should().Contain("public int EnumIndex { get; private set; }");
+        compileTimeGeneratedSource.Should().Contain("Ten.EnumIndex = 10;");
+        compileTimeGeneratedSource.Should().Contain("Eleven.EnumIndex = 11;");
+    }
+
+    [Fact]
     public void When_AssemblyDisablesConstructionRestrictions_Then_ShouldAllowPublicConstructor()
     {
         const string source = """
@@ -222,6 +400,11 @@ public class EnumClassDefaultsAttributeTests
     private static CSharpCompilation CreateCompilation(string source, CSharpParseOptions parseOptions)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
+        return CreateCompilation([syntaxTree]);
+    }
+
+    private static CSharpCompilation CreateCompilation(IEnumerable<SyntaxTree> syntaxTrees)
+    {
         var referencePaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
             .Append(typeof(global::EnumClasses.EnumClassAttribute).Assembly.Location)
@@ -229,7 +412,7 @@ public class EnumClassDefaultsAttributeTests
 
         return CSharpCompilation.Create(
             assemblyName: "EnumClassDefaultsAttributeTests",
-            syntaxTrees: [syntaxTree],
+            syntaxTrees: syntaxTrees,
             references: referencePaths.Select(path => MetadataReference.CreateFromFile(path)),
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }

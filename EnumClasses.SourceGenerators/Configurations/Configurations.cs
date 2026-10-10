@@ -5,7 +5,7 @@ internal record struct Configuration(
     bool GenerateRawEnum,
     LookupMode LookupMode,
     ConstructionRestrictionMode ConstructionRestrictionMode,
-    bool RequireIndexAssignmentInInitializer);
+    IndexAssignmentMode IndexAssignmentMode);
 
 
 internal record struct ConfigurationOverrides(
@@ -13,4 +13,4 @@ internal record struct ConfigurationOverrides(
     bool? GenerateRawEnum,
     LookupMode? LookupMode,
     ConstructionRestrictionMode? ConstructionRestrictionMode,
-    bool? RequireIndexAssignmentInInitializer);
+    IndexAssignmentMode? IndexAssignmentMode);

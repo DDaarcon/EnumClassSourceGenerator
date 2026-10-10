@@ -3,14 +3,29 @@
 namespace EnumClasses
 {
     /// <summary>
-    /// Provides configuration shared by attributes that generate an enum class.
+    /// Marks a class for enum-class member generation.
     /// </summary>
-    /// <remarks>Apply <see cref="EnumClassAttribute"/> or <see cref="NumberedEnumClassAttribute"/> instead.</remarks>
+    /// <remarks>
+    /// <para>
+    /// The target must be a partial, non-generic, non-nested class in a named namespace and must declare
+    /// its accessibility explicitly.
+    /// </para>
+    /// <para>
+    /// Values are declared as initialized <c>public static readonly</c> fields or initialized
+    /// <c>public static</c> get-only auto-properties. A value may have the target class type or a type
+    /// derived from it. Apply <see cref="EnumClassIgnoreAttribute"/> to an otherwise eligible member to
+    /// exclude it from generation.
+    /// </para>
+    /// <para>
+    /// Apply <see cref="EnumClassDefaultsAttribute"/> to the assembly to configure defaults for options
+    /// not specified on this attribute.
+    /// </para>
+    /// </remarks>
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 #if ENUMCLASSES_SOURCE_GENERATOR
-    internal abstract class BaseEnumClassAttribute : Attribute
+    internal sealed class EnumClassAttribute : Attribute
 #else
-    public abstract class BaseEnumClassAttribute : Attribute
+    public sealed class EnumClassAttribute : Attribute
 #endif
     {
         /// <summary>
@@ -42,62 +57,14 @@ namespace EnumClasses
         /// </summary>
         /// <remarks>When omitted, <see cref="EnumClassDefaultsAttribute.ConstructionRestrictionMode"/> is used.</remarks>
         public ConstructionRestrictionMode ConstructionRestrictionMode { get; set; } = EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode;
-    }
 
-
-    /// <summary>
-    /// Marks a class for enum-class member generation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The target must be a partial, non-generic, non-nested class in a named namespace and must declare
-    /// its accessibility explicitly.
-    /// </para>
-    /// <para>
-    /// Values are declared as initialized <c>public static readonly</c> fields or initialized
-    /// <c>public static</c> get-only auto-properties. A value may have the target class type or a type
-    /// derived from it. Apply <see cref="EnumClassIgnoreAttribute"/> to an otherwise eligible member to
-    /// exclude it from generation.
-    /// </para>
-    /// <para>
-    /// Apply <see cref="EnumClassDefaultsAttribute"/> to the assembly to configure defaults for options
-    /// not specified on this attribute.
-    /// </para>
-    /// </remarks>
-#if ENUMCLASSES_SOURCE_GENERATOR
-    internal sealed class EnumClassAttribute : BaseEnumClassAttribute
-#else
-    public sealed class EnumClassAttribute : BaseEnumClassAttribute
-#endif
-    {
-    }
-
-    /// <summary>
-    /// Marks a class for numbered enum-class member generation.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The target and its values must have the same shape required by <see cref="EnumClassAttribute"/>.
-    /// Each declared value must have a unique <c>EnumIndex</c> value.
-    /// </para>
-    /// <para>
-    /// Apply <see cref="EnumClassDefaultsAttribute"/> to the assembly to configure defaults for options
-    /// not specified on this attribute.
-    /// </para>
-    /// </remarks>
-#if ENUMCLASSES_SOURCE_GENERATOR
-    internal sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
-#else
-    public sealed class NumberedEnumClassAttribute : BaseEnumClassAttribute
-#endif
-    {
         /// <summary>
-        /// Gets or sets whether the generated <c>EnumIndex</c> property uses the <see langword="required"/> modifier.
+        /// Gets or sets whether indexes are resolved by the generator or assigned by value initializers at runtime.
         /// </summary>
         /// <remarks>
-        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.RequireIndexAssignmentInInitializer"/> is used.
-        /// The built-in default is <see langword="true"/>.
+        /// When omitted, the value configured by <see cref="EnumClassDefaultsAttribute.IndexAssignmentMode"/> is used.
+        /// The built-in default is <see cref="EnumClasses.IndexAssignmentMode.CompileTime"/>.
         /// </remarks>
-        public bool RequireIndexAssignmentInInitializer { get; set; } = true;
+        public IndexAssignmentMode IndexAssignmentMode { get; set; } = EnumClassDefaultsAttribute.DefaultIndexAssignmentMode;
     }
 }

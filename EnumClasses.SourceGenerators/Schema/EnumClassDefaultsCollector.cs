@@ -7,18 +7,22 @@ namespace EnumClasses.SourceGenerators.Schema;
 
 internal static class EnumClassDefaultsCollector
 {
-    public static Configuration Collect(IAssemblySymbol assemblySymbol)
+    internal record struct CollectResult(
+        Configuration Configuration,
+        Diagnostic[] DiagnosticReports);
+
+    public static CollectResult Collect(IAssemblySymbol assemblySymbol)
     {
         var defaultValues = new Configuration(
             EnumClassDefaultsAttribute.DefaultGenerateJsonConverter,
             EnumClassDefaultsAttribute.DefaultGenerateRawEnum,
             EnumClassDefaultsAttribute.DefaultLookupMode,
             EnumClassDefaultsAttribute.DefaultConstructionRestrictionMode,
-            EnumClassDefaultsAttribute.DefaultRequireIndexAssignmentInInitializer);
+            EnumClassDefaultsAttribute.DefaultIndexAssignmentMode);
 
         var attributes = assemblySymbol.GetAttributes();
         if (attributes.Length == 0)
-            return defaultValues;
+            return new(defaultValues, []);
 
         var defaultsAttribute = attributes
             .Where(x => x.AttributeClass is not null)
@@ -27,7 +31,11 @@ internal static class EnumClassDefaultsCollector
                     x.AttributeClass!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                     SchemaConsts.AttributeNames.EnumClassDefaultsFullyQualified));
         if (defaultsAttribute is null)
-            return defaultValues;
+            return new(defaultValues, []);
+
+        var indexAssignmentMode = defaultsAttribute.NamedArguments
+            .GetEnumProperty<IndexAssignmentMode>(nameof(EnumClassAttribute.IndexAssignmentMode));
+        var diagnostics = GetInvalidIndexAssignmentModeDiagnostic(defaultsAttribute, indexAssignmentMode);
 
 
         var newValues = new ConfigurationOverrides
@@ -36,9 +44,31 @@ internal static class EnumClassDefaultsCollector
             GenerateRawEnum = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(EnumClassAttribute.GenerateRawEnum)),
             LookupMode = defaultsAttribute.NamedArguments.GetEnumProperty<LookupMode>(nameof(EnumClassAttribute.LookupMode)),
             ConstructionRestrictionMode = defaultsAttribute.NamedArguments.GetEnumProperty<ConstructionRestrictionMode>(nameof(EnumClassAttribute.ConstructionRestrictionMode)),
-            RequireIndexAssignmentInInitializer = defaultsAttribute.NamedArguments.GetBooleanProperty(nameof(NumberedEnumClassAttribute.RequireIndexAssignmentInInitializer)),
+            IndexAssignmentMode = indexAssignmentMode
         };
 
-        return ConfigurationComposer.Compose(newValues, defaultValues);
+        return new(ConfigurationComposer.Compose(newValues, defaultValues), diagnostics);
+    }
+
+    private static Diagnostic[] GetInvalidIndexAssignmentModeDiagnostic(
+        AttributeData attribute,
+        IndexAssignmentMode? indexAssignmentMode)
+    {
+        var namedArgument = attribute.NamedArguments
+            .FirstOrDefault(x => x.Key == nameof(EnumClassAttribute.IndexAssignmentMode));
+
+        if (namedArgument.Key is null
+            || indexAssignmentMode.HasValue
+            || namedArgument.Value.Value is not int invalidValue)
+        {
+            return [];
+        }
+
+        return
+        [
+            Diagnostics.UnsupportedIndexAssignmentMode(
+                attribute.GetNamedArgumentValueLocation(nameof(EnumClassAttribute.IndexAssignmentMode)),
+                invalidValue)
+        ];
     }
 }

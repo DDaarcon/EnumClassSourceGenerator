@@ -1,4 +1,5 @@
-﻿using EnumClasses.SourceGenerators.GenerationStrategies;
+﻿using EnumClasses.SourceGenerators.FeatureSupport;
+using EnumClasses.SourceGenerators.GenerationStrategies;
 using EnumClasses.SourceGenerators.Schema;
 using System;
 using System.Linq;
@@ -101,7 +102,7 @@ internal class EnumClassDeclarationTemplate
 
                     {{BuildValueMatching(enumValues, definition)}}
                             
-                    {{BuildNumberingHelpersWhenApplicable(definition)}}
+                    {{BuildRuntimeIndexingHelpersWhenApplicable(enumValues, props)}}
 
                     {{BuildUtf8EncodedResourcesWhenApplicable(enumValues, props)}}
                             
@@ -165,7 +166,7 @@ internal class EnumClassDeclarationTemplate
             return $$"""
                 static {{props.Definition.DeclarationName}}()
                 {
-                    {{(!CheckIfNumberedByUser(props.Definition)
+                    {{(props.Configuration.IndexAssignmentMode is IndexAssignmentMode.CompileTime
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}.EnumIndex = {enumValue.ResolvedIndex};"))
                         : "")}}
                 
@@ -185,10 +186,8 @@ internal class EnumClassDeclarationTemplate
                     {{BuildSerializationDictionaryAssignmentWhenApplicable(enumValues, props)}}
 
                     {{BuildUtf8EncodedResourcesDictionaryAssignmentWhenApplicable(enumValues, props)}}
-                
-                    {{(CheckIfNumberedByUser(props.Definition)
-                        ? "_usedIndexes = null;"
-                        : "")}}
+
+                    {{BuildRuntimeIndexAssignmentValidationWhenApplicable(enumValues, props)}}
                 }
                 """;
 
@@ -201,7 +200,7 @@ internal class EnumClassDeclarationTemplate
                     _valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName, System.StringComparer.Ordinal);
                     """;
 
-                if (props.Definition.Meta.IsAlternateLookupSupported)
+                if (props.Definition.FeatureSupport.AlternateLookup.IsSupported)
                     return dictAssignment + $$"""
 
                         _valuesBySerializedNameSpanLookup = _valuesBySerializedName.GetAlternateLookup<System.ReadOnlySpan<char>>();
@@ -215,14 +214,24 @@ internal class EnumClassDeclarationTemplate
                 if (!CheckIfShouldIncludeUtf8EncodedResources(enumValues, props))
                     return "";
 
-                return """
+                return $$"""
                     _valuesBySerializedUtf8Name = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(
                         _allValues,
                         x => (ReadOnlyMemory<byte>) System.MemoryExtensions.AsMemory(System.Text.Encoding.UTF8.GetBytes(x._serializedName)),
                         Utf8MemoryComparer.Instance);
 
-                    _valuesBySerializedUtf8NameSpanLookup = _valuesBySerializedUtf8Name.GetAlternateLookup<System.ReadOnlySpan<byte>>();
+                    {{ValuesBySerializedUtf8NameSpanLookupVariableName}} = _valuesBySerializedUtf8Name.GetAlternateLookup<System.ReadOnlySpan<byte>>();
                     """;
+            }
+
+            static string BuildRuntimeIndexAssignmentValidationWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
+            {
+                if (props.Configuration.IndexAssignmentMode is not IndexAssignmentMode.Runtime)
+                    return "";
+
+                return GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary
+                    ? "_valuesByEnumIndex = CreateRuntimeIndexDictionary();"
+                    : "ValidateRuntimeIndexes();";
             }
         }
 
@@ -256,7 +265,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildProperty(EnumClassProps props)
             {
-                if (!CheckIfNumberedByUser(props.Definition))
+                if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.CompileTime)
                     return """
                         /// <summary>
                         /// Gets the zero-based index assigned from source declaration order.
@@ -264,37 +273,17 @@ internal class EnumClassDeclarationTemplate
                         public int EnumIndex { get; private set; }
                         """;
 
-                if (props.Configuration.RequireIndexAssignmentInInitializer)
-                    return """
-                        private int _enumIndex;
-
-                        /// <summary>
-                        /// Gets or initializes the unique application-defined index for this value.
-                        /// </summary>
-                        public required int EnumIndex
-                        {
-                            get => _enumIndex;
-                            init
-                            {
-                                _enumIndex = value;
-                                EnsureEnumIndexIsFree(this, value);
-                            }
-                        }
-                        """;
-
                 return """
                     private int _enumIndex;
+                    private bool _enumIndexAssigned;
 
-                    /// <summary>
-                    /// Gets or initializes the unique application-defined index for this value.
-                    /// </summary>
-                    public int EnumIndex
+                    public required int EnumIndex
                     {
                         get => _enumIndex;
                         init
                         {
                             _enumIndex = value;
-                            EnsureEnumIndexIsFree(this, value);
+                            _enumIndexAssigned = true;
                         }
                     }
                     """;
@@ -316,10 +305,17 @@ internal class EnumClassDeclarationTemplate
 
                 static string BuildBody(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
-                    if (CheckIfNumberedByUser(props.Definition))
+                    if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.Runtime)
                     {
-                        // TODO to be considered dict based accessing, but likely only when EnumIndex has a required keyword - to make sure values are present at launch
-                        // TODO + consider specifing "index assignment restrictions", meaning - defining during class declaration how much compile-time ready can we expect the indexes to be and basing on that generating the most efficient lookup mechanizm
+                        if (GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary)
+                        {
+                            return $$"""
+                                return (_valuesByEnumIndex?.TryGetValue(index, out {{props.Definition.DeclarationName}}? value) ?? false)
+                                    ? value
+                                    : null;
+                                """;
+                        }
+
                         return $$"""
                             {{String.Join(Consts.Nl, enumValues.Select(enumValue => $"if (index == {enumValue.Name}.EnumIndex) return {enumValue.Name};"))}}
                             return null;
@@ -351,7 +347,7 @@ internal class EnumClassDeclarationTemplate
                 /// <remarks>Members receive zero-based numeric values in source declaration order.</remarks>
                 public enum Raw
                 {
-                    {{BuildRawEnumDefinition(enumValues, props.Definition)}}
+                    {{BuildRawEnumDefinition(enumValues, props)}}
                 }
 
                 /// <summary>
@@ -445,9 +441,9 @@ internal class EnumClassDeclarationTemplate
                 public static explicit operator Raw({{props.Definition.DeclarationName}} value) => ToRaw(value);
                 """;
 
-            static string BuildRawEnumDefinition(EnumValueDefinition[] enumValues, EnumClassCollector.Definition definition)
+            static string BuildRawEnumDefinition(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (CheckIfNumberedByUser(definition))
+                if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.Runtime)
                     return String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name));
 
                 return String.Join(Consts.CommaNl, enumValues.Select(enumValue => $"{enumValue.Name} = {enumValue.ResolvedIndex}"));
@@ -686,28 +682,59 @@ internal class EnumClassDeclarationTemplate
                 """;
         }
 
-        static string BuildNumberingHelpersWhenApplicable(EnumClassCollector.Definition definition)
+        static string BuildRuntimeIndexingHelpersWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
-            if (!CheckIfNumberedByUser(definition))
+            if (props.Configuration.IndexAssignmentMode is not IndexAssignmentMode.Runtime)
                 return "";
 
+            if (GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary)
+            {
+                return $$"""
+                    private static System.Collections.Frozen.FrozenDictionary<int, {{props.Definition.DeclarationName}}>? _valuesByEnumIndex;
+
+                    private static System.Collections.Frozen.FrozenDictionary<int, {{props.Definition.DeclarationName}}> CreateRuntimeIndexDictionary()
+                    {
+                        var valuesByEnumIndex = new System.Collections.Generic.Dictionary<int, {{props.Definition.DeclarationName}}>(_allValues.Length);
+
+                        foreach (var value in _allValues)
+                        {
+                            if (!value._enumIndexAssigned)
+                            {
+                                throw new System.InvalidOperationException(
+                                    "Every declared {{props.Definition.DeclarationName}} value must assign EnumIndex.");
+                            }
+
+                            if (!valuesByEnumIndex.TryAdd(value._enumIndex, value))
+                            {
+                                throw new System.InvalidOperationException(
+                                    $"EnumIndex {value._enumIndex} is assigned more than once.");
+                            }
+                        }
+
+                        return System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(valuesByEnumIndex);
+                    }
+                    """;
+            }
+
             return $$"""
-                private static System.Collections.Generic.List<int>? _usedIndexes;
-
-                private static void EnsureEnumIndexIsFree({{definition.DeclarationName}} value, int index)
+                private static void ValidateRuntimeIndexes()
                 {
-                    if (_usedIndexes is null)
-                    {
-                        _usedIndexes = [index];
-                        return;
-                    }
+                    var usedIndexes = new System.Collections.Generic.HashSet<int>();
 
-                    if (_usedIndexes.Contains(index))
+                    foreach (var value in _allValues)
                     {
-                        throw new System.ArgumentException($"EnumIndex of {index} can not be used more than once.");
-                    }
+                        if (!value._enumIndexAssigned)
+                        {
+                            throw new System.InvalidOperationException(
+                                "Every declared {{props.Definition.DeclarationName}} value must assign EnumIndex.");
+                        }
 
-                    _usedIndexes.Add(index);
+                        if (!usedIndexes.Add(value._enumIndex))
+                        {
+                            throw new System.InvalidOperationException(
+                                $"EnumIndex {value._enumIndex} is assigned more than once.");
+                        }
+                    }
                 }
                 """;
         }
@@ -791,7 +818,7 @@ internal class EnumClassDeclarationTemplate
                     private static System.Collections.Frozen.FrozenDictionary<string, {props.Definition.DeclarationName}>? _valuesBySerializedName;
                     """;
 
-                if (props.Definition.Meta.IsAlternateLookupSupported)
+                if (props.Definition.FeatureSupport.AlternateLookup.IsSupported)
                     return dictAssignment + $$"""
 
                         private static System.Collections.Frozen.FrozenDictionary<string, {{props.Definition.DeclarationName}}>.AlternateLookup<System.ReadOnlySpan<char>> _valuesBySerializedNameSpanLookup;
@@ -810,6 +837,7 @@ internal class EnumClassDeclarationTemplate
 
                 static string BuildDictionaryBasedDeserialization(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
+                    // TODO throwing on missing dictionaries instead of defaulting to false
                     return $$"""
                         /// <summary>
                         /// Finds a declared value by its case-sensitive source member name.
@@ -833,13 +861,13 @@ internal class EnumClassDeclarationTemplate
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
-                            {{BuildSpanDeserializationLogic(props)}}
+                            {{BuildSpanDeserializationBody(enumValues, props)}}
                         }
                         """;
 
-                    static string BuildSpanDeserializationLogic(EnumClassProps props)
+                    static string BuildSpanDeserializationBody(EnumValueDefinition[] enumValues, EnumClassProps props)
                     {
-                        if (props.Definition.Meta.IsAlternateLookupSupported)
+                        if (props.Definition.FeatureSupport.AlternateLookup.IsSupported)
                         {
                             return $$"""
                                 return _valuesBySerializedNameSpanLookup.TryGetValue(serializedValue, out {{props.Definition.DeclarationName}}? value)
@@ -848,11 +876,8 @@ internal class EnumClassDeclarationTemplate
                                 """;
                         }
 
-                        return $$"""
-                            return (_valuesBySerializedName?.TryGetValue(serializedValue.ToString(), out {{props.Definition.DeclarationName}}? value) ?? false)
-                                ? value
-                                : null;
-                            """;
+                        // fallback
+                        return BuildIfChainSpanDeserializationBody(enumValues, props);
                     }
                 }
 
@@ -879,10 +904,17 @@ internal class EnumClassDeclarationTemplate
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
                         public static {{props.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
-                            {{String.Join(Consts.Nl, enumValues.Select(enumValue
-                                => $"if (System.MemoryExtensions.Equals(serializedValue, System.MemoryExtensions.AsSpan({enumValue.Name}._serializedName), System.StringComparison.Ordinal)) return {enumValue.Name};"))}}
-                            return null;
+                            {{BuildIfChainSpanDeserializationBody(enumValues, props)}}
                         }
+                        """;
+                }
+
+                static string BuildIfChainSpanDeserializationBody(EnumValueDefinition[] enumValues, EnumClassProps props)
+                {
+                    return $$"""
+                        {{String.Join(Consts.Nl, enumValues.Select(enumValue
+                            => $"if (System.MemoryExtensions.Equals(serializedValue, System.MemoryExtensions.AsSpan({enumValue.Name}._serializedName), System.StringComparison.Ordinal)) return {enumValue.Name};"))}}
+                        return null;
                         """;
                 }
             }
@@ -892,8 +924,7 @@ internal class EnumClassDeclarationTemplate
 
         static bool CheckIfShouldIncludeUtf8EncodedResources(EnumValueDefinition[] enumValues, EnumClassProps props)
             => GetLookupImplementationForUtf8Keys(enumValues, props) is LookupImplementation.Dictionary
-                && props.Configuration.GenerateJsonConverter
-                && props.Definition.Meta.IsAlternateLookupSupported;
+                && props.Configuration.GenerateJsonConverter;
 
         static string BuildUtf8EncodedResourcesWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
@@ -948,14 +979,14 @@ internal class EnumClassDeclarationTemplate
         }
 
 
-        static bool CheckIfNumberedByUser(EnumClassCollector.Definition definition)
-            => definition.OurAttributeType is EnumClassCollector.OurAttributeType.NumberedEnumClass;
-
         static LookupImplementation GetLookupImplementationForStringKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
             => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.StringKeys);
 
         static LookupImplementation GetLookupImplementationForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
             => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.Utf8Keys);
+
+        static LookupImplementation GetLookupImplementationForIntKeys(EnumValueDefinition[] enumValues, EnumClassProps props)
+            => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.IntKeys);
     }
 
 

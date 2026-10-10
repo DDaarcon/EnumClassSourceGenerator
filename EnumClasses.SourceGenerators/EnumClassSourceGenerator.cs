@@ -26,17 +26,24 @@ namespace EnumClasses.SourceGenerators
         /// <inheritdoc/>
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            var defaultsIncrementalProps = context.CompilationProvider.Select(static (compilation, token) => EnumClassDefaultsCollector.Collect(compilation.Assembly));
+            var defaultsResults = context.CompilationProvider
+                .Select(static (compilation, token) => EnumClassDefaultsCollector.Collect(compilation.Assembly));
+            context.RegisterSourceOutput(defaultsResults, ReportDefaultsDiagnostics);
+            var defaultsIncrementalProps = defaultsResults
+                .Select(static (result, token) => result.Configuration);
 
             var basicAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.EnumClassFullyQualified,
                 predicate: CheckIfApplicable,
-                transform: static (context, token) => ConstructClassDefinitions(context, EnumClassCollector.OurAttributeType.EnumClass, token));
+                transform: static (context, token) => ConstructClassDefinitions(context, token));
             context.RegisterSourceOutput(CombineDeclarationWithDefaults(basicAttributeIncrementalProps, defaultsIncrementalProps), GenerateEnumClass);
+        }
 
-            var numberedAttributeIncrementalProps = context.SyntaxProvider.ForAttributeWithMetadataName(SchemaConsts.AttributeNames.NumberedEnumClassFullyQualified,
-                predicate: CheckIfApplicable,
-                transform: static (context, token) => ConstructClassDefinitions(context, EnumClassCollector.OurAttributeType.NumberedEnumClass, token));
-            context.RegisterSourceOutput(CombineDeclarationWithDefaults(numberedAttributeIncrementalProps, defaultsIncrementalProps), GenerateEnumClass);
+        private static void ReportDefaultsDiagnostics(
+            SourceProductionContext context,
+            EnumClassDefaultsCollector.CollectResult result)
+        {
+            foreach (var diagnostic in result.DiagnosticReports)
+                context.ReportDiagnostic(diagnostic);
         }
 
 
@@ -52,7 +59,7 @@ namespace EnumClasses.SourceGenerators
         }
 
 
-        private static EnumClassCollector.Definition.WithConfig ConstructClassDefinitions(GeneratorAttributeSyntaxContext context, EnumClassCollector.OurAttributeType attributeType, CancellationToken token)
+        private static EnumClassCollector.Definition.WithConfig ConstructClassDefinitions(GeneratorAttributeSyntaxContext context, CancellationToken token)
         {
             var classNode = (context.TargetNode as ClassDeclarationSyntax)!;
 
@@ -60,7 +67,6 @@ namespace EnumClasses.SourceGenerators
                 component: classNode,
                 componentSymbol: context.TargetSymbol,
                 attribute: new EnumClassCollector.OurAttribute(
-                    Type: attributeType,
                     Data: context.Attributes.First()),
                 context.SemanticModel,
                 token);
@@ -70,11 +76,9 @@ namespace EnumClasses.SourceGenerators
             IncrementalValuesProvider<EnumClassCollector.Definition.WithConfig> declarations,
             IncrementalValueProvider<Configuration> defaults)
             => declarations.Combine(defaults)
-                .Select(static (item, token)
-                    => item.Left with
-                    {
-                        Configuration = ConfigurationComposer.Compose(item.Left.ConfigurationOverrides, item.Right)
-                    });
+                .Select(static (item, token) => EnumClassCollector.ResolveConfiguration(
+                    item.Left,
+                    ConfigurationComposer.Compose(item.Left.ConfigurationOverrides, item.Right)));
 
 
 

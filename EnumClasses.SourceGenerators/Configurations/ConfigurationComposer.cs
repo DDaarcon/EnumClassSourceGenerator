@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace EnumClasses.SourceGenerators.Configurations;
+﻿namespace EnumClasses.SourceGenerators.Configurations;
 
 internal static class ConfigurationComposer
 {
@@ -12,5 +8,5 @@ internal static class ConfigurationComposer
             instance.GenerateRawEnum ?? defaults.GenerateRawEnum,
             instance.LookupMode ?? defaults.LookupMode,
             instance.ConstructionRestrictionMode ?? defaults.ConstructionRestrictionMode,
-            instance.RequireIndexAssignmentInInitializer ?? defaults.RequireIndexAssignmentInInitializer);
+            instance.IndexAssignmentMode ?? defaults.IndexAssignmentMode);
 }

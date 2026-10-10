@@ -6,8 +6,7 @@ namespace EnumClasses
     /// Configures assembly-wide defaults for enum classes generated in the assembly.
     /// </summary>
     /// <remarks>
-    /// Options specified directly on <see cref="EnumClassAttribute"/> or
-    /// <see cref="NumberedEnumClassAttribute"/> take precedence over these defaults.
+    /// Options specified directly on <see cref="EnumClassAttribute"/> take precedence over these defaults.
     /// </remarks>
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false, Inherited = false)]
 #if ENUMCLASSES_SOURCE_GENERATOR
@@ -48,16 +47,12 @@ namespace EnumClasses
         /// <summary>The built-in default for <see cref="ConstructionRestrictionMode"/>.</summary>
         public const ConstructionRestrictionMode DefaultConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor;
 
-
-        // NumberedEnumClass
-
         /// <summary>
-        /// Gets or sets whether generated <c>EnumIndex</c> properties use the <see langword="required"/> modifier by default.
+        /// Gets or sets whether indexes are resolved by the generator or assigned by value initializers at runtime.
         /// </summary>
-        public bool RequireIndexAssignmentInInitializer { get; set; } = DefaultRequireIndexAssignmentInInitializer;
+        public IndexAssignmentMode IndexAssignmentMode { get; set; } = DefaultIndexAssignmentMode;
 
-        /// <summary>The built-in default for <see cref="RequireIndexAssignmentInInitializer"/>.</summary>
-        public const bool DefaultRequireIndexAssignmentInInitializer = true;
-
+        /// <summary>The built-in default for <see cref="IndexAssignmentMode"/>.</summary>
+        public const IndexAssignmentMode DefaultIndexAssignmentMode = IndexAssignmentMode.CompileTime;
     }
 }

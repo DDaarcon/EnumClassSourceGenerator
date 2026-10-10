@@ -13,15 +13,18 @@ internal sealed class SpecializedRawEnum : RawEnum
 {
 }
 
-[NumberedEnumClass(GenerateRawEnum = true, ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor)]
-internal partial class NumberedRawEnum
+[EnumClass(
+    GenerateRawEnum = true,
+    ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor,
+    IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+internal partial class RuntimeIndexedRawEnum
 {
-    public static readonly NumberedRawEnum Ten = new()
+    public static readonly RuntimeIndexedRawEnum Ten = new()
     {
         EnumIndex = 10
     };
 
-    public static readonly NumberedRawEnum Twenty = new()
+    public static readonly RuntimeIndexedRawEnum Twenty = new()
     {
         EnumIndex = 20
     };

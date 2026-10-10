@@ -116,7 +116,7 @@ public class EnumClassValueAttributeTests
     }
 
     [Fact]
-    public void When_AttributedCommaSeparatedFieldsShareAnIndex_Then_ShouldReportCollision()
+    public void When_ExplicitIndexIsSharedByCommaSeparatedFields_Then_ShouldRequireSeparateDeclarations()
     {
         const string source = """
             using EnumClasses;
@@ -128,16 +128,53 @@ public class EnumClassValueAttributeTests
             {
                 [EnumClassValue(7)]
                 public static readonly SharedAttributeEnum First = new(), Second = new();
+
+                public static readonly SharedAttributeEnum Following = new();
             }
             """;
 
         var (result, _) = RunGenerator(source);
 
-        result.Diagnostics.Where(x => x.Id == "ENUMCLGEN012")
-            .Select(x => x.GetMessage())
-            .Should().BeEquivalentTo(
-                "Enum Class 'SharedAttributeEnum' value 'First' has the same index as 'Second'",
-                "Enum Class 'SharedAttributeEnum' value 'Second' has the same index as 'First'");
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN014")
+            .Which;
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.GetMessage().Should().Be(
+            "EnumClassValueAttribute with an index cannot be applied to a field declaration containing multiple values; split the values into separate declarations");
+        diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
+            .Should().Be("EnumClassValue(7)");
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN012");
+
+        var generatedSource = GetGeneratedSource(result, "Consumer.SharedAttributeEnum.g.cs");
+        generatedSource.Should().NotContain("First.EnumIndex");
+        generatedSource.Should().NotContain("Second.EnumIndex");
+        generatedSource.Should().Contain("Following.EnumIndex = 8;");
+    }
+
+    [Fact]
+    public void When_ParameterlessAttributeIsSharedByCommaSeparatedFields_Then_ShouldAllowAutomaticIndexes()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class SharedMarkerAttributeEnum
+            {
+                [EnumClassValue]
+                public static readonly SharedMarkerAttributeEnum First = new(), Second = new();
+            }
+            """;
+
+        var (result, outputCompilation) = RunGenerator(source);
+
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN014");
+        GetErrors(outputCompilation).Should().BeEmpty();
+
+        var generatedSource = GetGeneratedSource(result, "Consumer.SharedMarkerAttributeEnum.g.cs");
+        generatedSource.Should().Contain("First.EnumIndex = 0;");
+        generatedSource.Should().Contain("Second.EnumIndex = 1;");
     }
 
     [Fact]
@@ -165,6 +202,117 @@ public class EnumClassValueAttributeTests
         var generatedSource = GetGeneratedSource(result, "Consumer.MaximumIndexEnum.g.cs");
         generatedSource.Should().NotContain("Maximum.EnumIndex");
         generatedSource.Should().NotContain("Following.EnumIndex");
+    }
+
+    [Fact]
+    public void When_ExplicitAttributeIndexesAreUsedWithRuntimeAssignment_Then_ShouldReportWarningForEachAttribute()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+            internal partial class RuntimeIndexedEnum
+            {
+                [EnumClassValue(100)]
+                public static RuntimeIndexedEnum First { get; } = new() { EnumIndex = 10 };
+
+                [global::EnumClasses.EnumClassValue(200)]
+                public static readonly RuntimeIndexedEnum Second = new() { EnumIndex = 20 };
+            }
+            """;
+
+        var (result, outputCompilation) = RunGenerator(source);
+
+        var diagnostics = result.Diagnostics
+            .Where(x => x.Id == "ENUMCLGEN013")
+            .ToArray();
+
+        diagnostics.Should().HaveCount(2);
+        diagnostics.Should().OnlyContain(x =>
+            x.Severity == DiagnosticSeverity.Warning
+            && x.GetMessage() == "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode is set to Runtime");
+        diagnostics.Select(x => x.Location.SourceTree!.GetText().ToString(x.Location.SourceSpan))
+            .Should().BeEquivalentTo(
+                "EnumClassValue(100)",
+                "global::EnumClasses.EnumClassValue(200)");
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+
+        var generatedSource = GetGeneratedSource(result, "Consumer.RuntimeIndexedEnum.g.cs");
+        generatedSource.Should().Contain("public required int EnumIndex");
+        generatedSource.Should().NotContain("First.EnumIndex = 100;");
+        generatedSource.Should().NotContain("Second.EnumIndex = 200;");
+    }
+
+    [Fact]
+    public void When_AttributeDoesNotProvideRedundantRuntimeIndex_Then_ShouldNotReportWarning()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+            internal partial class RuntimeIndexedEnum
+            {
+                [EnumClassValue]
+                public static RuntimeIndexedEnum First { get; } = new() { EnumIndex = 10 };
+            }
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class CompileTimeIndexedEnum
+            {
+                [EnumClassValue(100)]
+                public static CompileTimeIndexedEnum First { get; } = new();
+            }
+            """;
+
+        var (result, outputCompilation) = RunGenerator(source);
+
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN013");
+        GetErrors(outputCompilation).Should().BeEmpty();
+
+        GetGeneratedSource(result, "Consumer.CompileTimeIndexedEnum.g.cs")
+            .Should().Contain("First.EnumIndex = 100;");
+    }
+
+    [Fact]
+    public void When_RuntimeIndexDictionaryIsForced_Then_ShouldValidateAndCollectInOneDictionary()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.Runtime,
+                LookupMode = LookupMode.ForceDictionary)]
+            internal partial class DictionaryRuntimeIndexedEnum
+            {
+                public static DictionaryRuntimeIndexedEnum Ten { get; } = new() { EnumIndex = 10 };
+                public static DictionaryRuntimeIndexedEnum Twenty { get; } = new() { EnumIndex = 20 };
+            }
+            """;
+
+        var (result, outputCompilation) = RunGenerator(source);
+
+        GetErrors(outputCompilation).Should().BeEmpty();
+        var generatedSource = GetGeneratedSource(result, "Consumer.DictionaryRuntimeIndexedEnum.g.cs");
+        generatedSource.Should().Contain("_valuesByEnumIndex = CreateRuntimeIndexDictionary();");
+        generatedSource.Should().Contain(
+            "new System.Collections.Generic.Dictionary<int, DictionaryRuntimeIndexedEnum>(_allValues.Length)");
+        generatedSource.Should().Contain("valuesByEnumIndex.TryAdd(value._enumIndex, value)");
+        generatedSource.Should().Contain(
+            "System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(valuesByEnumIndex)");
+        generatedSource.Should().NotContain("new System.Collections.Generic.HashSet<int>()");
+        generatedSource.Should().NotContain("ValidateRuntimeIndexes();");
     }
 
     private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(string source)
