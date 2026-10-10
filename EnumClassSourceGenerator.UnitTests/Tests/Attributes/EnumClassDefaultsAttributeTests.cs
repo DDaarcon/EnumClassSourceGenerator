@@ -17,7 +17,7 @@ public class EnumClassDefaultsAttributeTests
                 GenerateRawEnum = true,
                 LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.WithPrivateDefaultConstructor,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 
             namespace Consumer;
 
@@ -84,7 +84,7 @@ public class EnumClassDefaultsAttributeTests
                 GenerateRawEnum = false,
                 LookupMode = LookupMode.ForceDictionary,
                 ConstructionRestrictionMode = ConstructionRestrictionMode.Off,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class LocallyConfiguredEnum
             {
                 public static LocallyConfiguredEnum One { get; } = new() { EnumIndex = 1 };
@@ -117,7 +117,7 @@ public class EnumClassDefaultsAttributeTests
             [EnumClass(
                 GenerateJsonConverter = false,
                 GenerateRawEnum = true,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class RuntimeRawEnum
             {
                 public static RuntimeRawEnum Ten { get; } = new() { EnumIndex = 10 };
@@ -161,7 +161,7 @@ public class EnumClassDefaultsAttributeTests
             .Which;
         diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.GetMessage().Should().Be(
-            "IndexAssignmentMode value '99' is not supported; use CompileTime or Runtime");
+            "IndexAssignmentMode value '99' is not supported; use CompileTime, RuntimeAtValueInit, or RuntimeAtValueCreation");
         diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
             .Should().Be("(IndexAssignmentMode)99");
         result.GeneratedSources.Should().BeEmpty();
@@ -191,7 +191,7 @@ public class EnumClassDefaultsAttributeTests
             .Which;
         diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.GetMessage().Should().Be(
-            "IndexAssignmentMode value '99' is not supported; use CompileTime or Runtime");
+            "IndexAssignmentMode value '99' is not supported; use CompileTime, RuntimeAtValueInit, or RuntimeAtValueCreation");
         diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
             .Should().Be("(IndexAssignmentMode)99");
 
@@ -300,7 +300,7 @@ public class EnumClassDefaultsAttributeTests
         const string runtimeDefaultsSource = """
             using EnumClasses;
 
-            [assembly: EnumClassDefaults(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+            [assembly: EnumClassDefaults(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             """;
 
         const string compileTimeDefaultsSource = """

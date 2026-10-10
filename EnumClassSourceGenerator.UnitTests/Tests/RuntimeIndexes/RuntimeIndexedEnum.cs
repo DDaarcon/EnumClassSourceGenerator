@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace EnumClassSourceGenerator.UnitTests.Tests;
 
-[EnumClass(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 internal partial class RuntimeIndexedEnum
 {
     [EnumClassValue]
@@ -18,7 +18,7 @@ internal partial class RuntimeIndexedEnum
     };
 }
 
-[EnumClass(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 internal partial class DuplicateRuntimeIndexedEnum
 {
     public static readonly DuplicateRuntimeIndexedEnum First = new()
@@ -32,7 +32,7 @@ internal partial class DuplicateRuntimeIndexedEnum
     };
 }
 
-[EnumClass(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 internal partial class UnassignedRuntimeIndexedEnum
 {
     [SetsRequiredMembers]
@@ -43,7 +43,7 @@ internal partial class UnassignedRuntimeIndexedEnum
     public static readonly UnassignedRuntimeIndexedEnum Value = new();
 }
 
-[EnumClass(IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 internal partial class ExtremeRuntimeIndexedEnum
 {
     public static readonly ExtremeRuntimeIndexedEnum Minimum = new()
@@ -63,7 +63,7 @@ internal partial class ExtremeRuntimeIndexedEnum
 }
 
 [EnumClass(
-    IndexAssignmentMode = IndexAssignmentMode.Runtime,
+    IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit,
     LookupMode = LookupMode.ForceDictionary)]
 internal partial class DictionaryRuntimeIndexedEnum
 {
@@ -76,4 +76,51 @@ internal partial class DictionaryRuntimeIndexedEnum
     {
         EnumIndex = 100
     };
+}
+
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
+internal partial class RuntimeAtValueInitAssignmentEnum
+{
+    private RuntimeAtValueInitAssignmentEnum()
+    {
+    }
+
+    [SetsRequiredMembers]
+    private RuntimeAtValueInitAssignmentEnum(int enumIndex)
+    {
+        EnumIndex = enumIndex;
+    }
+
+    public static readonly RuntimeAtValueInitAssignmentEnum FromConstructor = new(30);
+
+    public static readonly RuntimeAtValueInitAssignmentEnum FromInitializer = new()
+    {
+        EnumIndex = 40
+    };
+}
+
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueCreation)]
+internal partial class RuntimeAtValueCreationAssignmentEnum
+{
+    private RuntimeAtValueCreationAssignmentEnum()
+    {
+    }
+
+    private RuntimeAtValueCreationAssignmentEnum(int enumIndex)
+    {
+        EnumIndex = enumIndex;
+    }
+
+    public static readonly RuntimeAtValueCreationAssignmentEnum FromConstructor = new(50);
+
+    public static readonly RuntimeAtValueCreationAssignmentEnum FromInitializer = new()
+    {
+        EnumIndex = 60
+    };
+}
+
+[EnumClass(IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueCreation)]
+internal partial class UnassignedRuntimeAtValueCreationEnum
+{
+    public static readonly UnassignedRuntimeAtValueCreationEnum Value = new();
 }

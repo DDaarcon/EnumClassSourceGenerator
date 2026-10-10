@@ -71,4 +71,36 @@ public class RuntimeIndexTests
         lookupDictionary.Should().NotBeNull();
         lookupDictionary!.GetValue(null).Should().NotBeNull();
     }
+
+    [Fact]
+    public void When_RuntimeAtValueInitUsesConstructorAndInitializerAssignments_Then_ShouldResolveBothIndexes()
+    {
+        RuntimeAtValueInitAssignmentEnum.GetByEnumIndex(30)
+            .Should().BeSameAs(RuntimeAtValueInitAssignmentEnum.FromConstructor);
+        RuntimeAtValueInitAssignmentEnum.GetByEnumIndex(40)
+            .Should().BeSameAs(RuntimeAtValueInitAssignmentEnum.FromInitializer);
+    }
+
+    [Fact]
+    public void When_RuntimeAtValueCreationUsesConstructorAndInitializerAssignments_Then_ShouldResolveBothIndexes()
+    {
+        RuntimeAtValueCreationAssignmentEnum.GetByEnumIndex(50)
+            .Should().BeSameAs(RuntimeAtValueCreationAssignmentEnum.FromConstructor);
+        RuntimeAtValueCreationAssignmentEnum.GetByEnumIndex(60)
+            .Should().BeSameAs(RuntimeAtValueCreationAssignmentEnum.FromInitializer);
+    }
+
+    [Fact]
+    public void When_RuntimeAtValueCreationAssignmentIsOmitted_Then_TypeInitializationShouldFailWithMeaningfulError()
+    {
+        var action = () => UnassignedRuntimeAtValueCreationEnum.GetByEnumIndex(0);
+
+        var exception = action.Should()
+            .Throw<TypeInitializationException>()
+            .Which;
+        exception.InnerException.Should()
+            .BeOfType<InvalidOperationException>()
+            .Which.Message.Should().Be(
+                "Every declared UnassignedRuntimeAtValueCreationEnum value must assign EnumIndex.");
+    }
 }

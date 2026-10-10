@@ -214,7 +214,7 @@ public class EnumClassValueAttributeTests
 
             [EnumClass(
                 GenerateJsonConverter = false,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class RuntimeIndexedEnum
             {
                 [EnumClassValue(100)]
@@ -234,7 +234,7 @@ public class EnumClassValueAttributeTests
         diagnostics.Should().HaveCount(2);
         diagnostics.Should().OnlyContain(x =>
             x.Severity == DiagnosticSeverity.Warning
-            && x.GetMessage() == "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode is set to Runtime");
+            && x.GetMessage() == "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode uses runtime assignment");
         diagnostics.Select(x => x.Location.SourceTree!.GetText().ToString(x.Location.SourceSpan))
             .Should().BeEquivalentTo(
                 "EnumClassValue(100)",
@@ -258,7 +258,7 @@ public class EnumClassValueAttributeTests
 
             [EnumClass(
                 GenerateJsonConverter = false,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class RuntimeIndexedEnum
             {
                 [EnumClassValue]
@@ -292,7 +292,7 @@ public class EnumClassValueAttributeTests
 
             [EnumClass(
                 GenerateJsonConverter = false,
-                IndexAssignmentMode = IndexAssignmentMode.Runtime,
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit,
                 LookupMode = LookupMode.ForceDictionary)]
             internal partial class DictionaryRuntimeIndexedEnum
             {

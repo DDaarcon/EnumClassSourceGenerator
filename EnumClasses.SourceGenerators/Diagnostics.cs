@@ -152,7 +152,7 @@ internal static class Diagnostics
         new(
             id: "ENUMCLGEN013",
             title: "Redundant index specification",
-            messageFormat: "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode is set to Runtime",
+            messageFormat: "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode uses runtime assignment",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -185,7 +185,7 @@ internal static class Diagnostics
         new(
             id: "ENUMCLGEN016",
             title: "Unsupported index assignment mode",
-            messageFormat: "IndexAssignmentMode value '{0}' is not supported; use CompileTime or Runtime",
+            messageFormat: "IndexAssignmentMode value '{0}' is not supported; use CompileTime, RuntimeAtValueInit, or RuntimeAtValueCreation",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);

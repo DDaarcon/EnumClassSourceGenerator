@@ -16,9 +16,18 @@
         CompileTime = 0,
 
         /// <summary>
-        /// Requires each declared value to assign <c>EnumIndex</c> in its initializer and validates the
-        /// completed declared set when the enum class is initialized.
+        /// Requires each declared value to assign <c>EnumIndex</c> during value initialization and validates
+        /// the completed declared set when the enum class is initialized.
         /// </summary>
-        Runtime = 1,
+        RuntimeAtValueInit = 1,
+
+        /// <summary>
+        /// Allows a value constructor to assign <c>EnumIndex</c> during creation and validates the completed
+        /// declared set when the enum class is initialized. Unlike <see cref="RuntimeAtValueInit"/>, the
+        /// generated property is not marked <see langword="required"/>.
+        /// </summary>
+        RuntimeAtValueCreation = 2,
+
+        // TODO RuntimeUnrestricted
     }
 }

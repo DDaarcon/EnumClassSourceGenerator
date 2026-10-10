@@ -1,6 +1,7 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
 using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.Schema.Help;
+using EnumClasses.SourceGenerators.ExternalSourcesHelpers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -204,7 +205,7 @@ internal static class EnumClassCollector
     {
         var definition = collectedDefinition.Definition;
         Diagnostic[] configurationDiagnostics = configuration is
-            { IndexAssignmentMode: IndexAssignmentMode.Runtime, GenerateRawEnum: true }
+            { IndexAssignmentMode.IsRuntime: true, GenerateRawEnum: true }
                 ? [Diagnostics.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation)]
                 : [];
 

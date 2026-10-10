@@ -16,7 +16,7 @@ internal sealed class SpecializedRawEnum : RawEnum
 [EnumClass(
     GenerateRawEnum = true,
     ConstructionRestrictionMode = ConstructionRestrictionMode.WithProtectedDefaultConstructor,
-    IndexAssignmentMode = IndexAssignmentMode.Runtime)]
+    IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
 internal partial class RuntimeIndexedRawEnum
 {
     public static readonly RuntimeIndexedRawEnum Ten = new()

@@ -1,4 +1,5 @@
-﻿using EnumClasses.SourceGenerators.FeatureSupport;
+﻿using EnumClasses.SourceGenerators.ExternalSourcesHelpers;
+using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.GenerationStrategies;
 using EnumClasses.SourceGenerators.Schema;
 using System;
@@ -226,7 +227,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildRuntimeIndexAssignmentValidationWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (props.Configuration.IndexAssignmentMode is not IndexAssignmentMode.Runtime)
+                if (!props.Configuration.IndexAssignmentMode.IsRuntime)
                     return "";
 
                 return GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary
@@ -266,6 +267,7 @@ internal class EnumClassDeclarationTemplate
             static string BuildProperty(EnumClassProps props)
             {
                 if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.CompileTime)
+                    // TODO think of a way for restricting value change after creation
                     return """
                         /// <summary>
                         /// Gets the zero-based index assigned from source declaration order.
@@ -273,11 +275,28 @@ internal class EnumClassDeclarationTemplate
                         public int EnumIndex { get; private set; }
                         """;
 
+                if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.RuntimeAtValueInit)
+                    return """
+                        private int _enumIndex;
+                        private bool _enumIndexAssigned;
+
+                        public required int EnumIndex
+                        {
+                            get => _enumIndex;
+                            init
+                            {
+                                _enumIndex = value;
+                                _enumIndexAssigned = true;
+                            }
+                        }
+                        """;
+
+                // IndexAssignmentMode.RuntimeAtValueCreation
                 return """
                     private int _enumIndex;
                     private bool _enumIndexAssigned;
 
-                    public required int EnumIndex
+                    public int EnumIndex
                     {
                         get => _enumIndex;
                         init
@@ -305,7 +324,7 @@ internal class EnumClassDeclarationTemplate
 
                 static string BuildBody(EnumValueDefinition[] enumValues, EnumClassProps props)
                 {
-                    if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.Runtime)
+                    if (props.Configuration.IndexAssignmentMode.IsRuntime)
                     {
                         if (GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary)
                         {
@@ -443,7 +462,7 @@ internal class EnumClassDeclarationTemplate
 
             static string BuildRawEnumDefinition(EnumValueDefinition[] enumValues, EnumClassProps props)
             {
-                if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.Runtime)
+                if (props.Configuration.IndexAssignmentMode.IsRuntime)
                     return String.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name));
 
                 return String.Join(Consts.CommaNl, enumValues.Select(enumValue => $"{enumValue.Name} = {enumValue.ResolvedIndex}"));
@@ -684,7 +703,7 @@ internal class EnumClassDeclarationTemplate
 
         static string BuildRuntimeIndexingHelpersWhenApplicable(EnumValueDefinition[] enumValues, EnumClassProps props)
         {
-            if (props.Configuration.IndexAssignmentMode is not IndexAssignmentMode.Runtime)
+            if (!props.Configuration.IndexAssignmentMode.IsRuntime)
                 return "";
 
             if (GetLookupImplementationForIntKeys(enumValues, props) is LookupImplementation.Dictionary)
