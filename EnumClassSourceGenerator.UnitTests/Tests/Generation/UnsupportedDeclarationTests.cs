@@ -7,6 +7,71 @@ namespace EnumClassSourceGenerator.UnitTests.Tests;
 public class UnsupportedDeclarationTests
 {
     [Fact]
+    public void When_EnumClassIsNotPartial_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass]
+            internal class NonPartialEnum
+            {
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN020")
+            .Subject;
+        var declarationStart = source.IndexOf("NonPartialEnum");
+
+        diagnostic.GetMessage().Should().Contain("'NonPartialEnum'");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.Location.SourceSpan.Start.Should().Be(declarationStart);
+        diagnostic.Location.SourceSpan.Length.Should().Be("NonPartialEnum".Length);
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.NonPartialEnum.g.cs");
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.NonPartialEnumJsonConverter.g.cs");
+    }
+
+    [Fact]
+    public void When_AnyEnumClassDeclarationIsNotPartial_Then_ShouldReportDiagnosticOnThatDeclarationAndSkipGeneration()
+    {
+        const string attributedPart = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass]
+            internal partial class SplitEnum
+            {
+            }
+            """;
+        const string nonPartialPart = """
+            namespace Consumer;
+
+            internal class SplitEnum
+            {
+            }
+            """;
+
+        var result = RunGenerator(attributedPart, nonPartialPart);
+
+        var diagnostic = result.Diagnostics.Should()
+            .ContainSingle(x => x.Id == "ENUMCLGEN020")
+            .Subject;
+        var declarationStart = nonPartialPart.IndexOf("SplitEnum");
+
+        diagnostic.Location.SourceTree!.FilePath.Should().Be("Source1.cs");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
+        diagnostic.Location.SourceSpan.Start.Should().Be(declarationStart);
+        diagnostic.Location.SourceSpan.Length.Should().Be("SplitEnum".Length);
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnum.g.cs");
+        result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnumJsonConverter.g.cs");
+    }
+
+    [Fact]
     public void When_EnumClassIsNested_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()
     {
         const string source = """

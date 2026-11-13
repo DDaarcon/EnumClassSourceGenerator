@@ -191,4 +191,16 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic PartialModifierRequired(Location? declarationLocation, string declarationName)
+        => Diagnostic.Create(PartialModifierRequiredDescriptor, declarationLocation, declarationName);
+
+    public static readonly DiagnosticDescriptor PartialModifierRequiredDescriptor =
+        new(
+            id: "ENUMCLGEN020",
+            title: "Enum Classes must be partial",
+            messageFormat: "Enum Class '{0}' must be declared partial",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

@@ -72,6 +72,10 @@ internal static class EnumClassCollector
                 || x.IsKind(SyntaxKind.ProtectedKeyword));
 
         var typeSymbol = (INamedTypeSymbol)componentSymbol;
+        var declarations = typeSymbol.DeclaringSyntaxReferences
+            .Select(reference => reference.GetSyntax(token))
+            .OfType<ClassDeclarationSyntax>()
+            .ToArray();
         var explicitInstanceConstructors = typeSymbol.InstanceConstructors
             .Where(constructor => !constructor.IsImplicitlyDeclared)
             .ToArray();
@@ -103,6 +107,14 @@ internal static class EnumClassCollector
         if (areAccessorsMissing)
             reports.Add(EnumClassError.InvalidModifiers(declarationLocation, declarationName));
 
+        var nonPartialDeclarations = declarations
+            .Where(declaration => !declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+            .ToArray();
+        bool arePartialModifiersMissing = nonPartialDeclarations.Length > 0;
+        if (arePartialModifiersMissing)
+            reports.AddRange(nonPartialDeclarations.Select(declaration =>
+                EnumClassError.PartialModifierRequired(declaration.Identifier.GetLocation(), declarationName)));
+
         bool areInvalidConstructorsDefined = invalidConstructors.Any();
         if (areInvalidConstructorsDefined)
             reports.AddRange(invalidConstructors
@@ -116,6 +128,7 @@ internal static class EnumClassCollector
             isGeneric,
             isNamespaceMissing,
             areAccessorsMissing,
+            arePartialModifiersMissing,
             areInvalidConstructorsDefined,
             configurationDiagnostic is not null
         };
@@ -138,9 +151,7 @@ internal static class EnumClassCollector
             );
         }
 
-        var declarationsWithValues = typeSymbol.DeclaringSyntaxReferences
-            .Select(reference => reference.GetSyntax(token))
-            .OfType<ClassDeclarationSyntax>()
+        var declarationsWithValues = declarations
             .Select(declaration =>
             {
                 var declarationSemanticModel = semanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
