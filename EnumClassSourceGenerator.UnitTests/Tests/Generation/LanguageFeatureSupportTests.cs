@@ -59,6 +59,27 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_NotPatternIsUnsupported_Then_ShouldUseBasicNullComparison()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp8);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("return result != null;");
+        generatedSource.Should().Contain("=> GetByEnumIndex(index) != null;");
+        generatedSource.Should().NotContain(" is not null");
+    }
+
+    [Fact]
+    public void When_NotPatternIsSupported_Then_ShouldUseNotNullPattern()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp9);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("return result is not null;");
+        generatedSource.Should().Contain("=> GetByEnumIndex(index) is not null;");
+    }
+
+    [Fact]
     public void When_Utf8StringLiteralIsUnsupported_Then_ShouldUseStringComparison()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp10, generateJsonConverter: true);

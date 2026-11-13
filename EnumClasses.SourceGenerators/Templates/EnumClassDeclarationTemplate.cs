@@ -267,7 +267,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = GetByEnumIndex(index);
-                    return result is not null;
+                    return {{BuildIsNotNullExpression("result", props.Definition.FeatureSupport)}};
                 }
                 
                 /// <summary>
@@ -276,7 +276,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="index">The enum index to find.</param>
                 /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsEnumIndex(int index)
-                    => GetByEnumIndex(index) is not null;
+                    => {{BuildIsNotNullExpression("GetByEnumIndex(index)", props.Definition.FeatureSupport)}};
                 """;
 
             static string BuildProperty(EnumClassProps props)
@@ -414,7 +414,7 @@ internal class EnumClassDeclarationTemplate
                         _ => null
                     };
 
-                    return result is not null;
+                    return {{BuildIsNotNullExpression("result", props.Definition.FeatureSupport)}};
                 }
 
                 /// <summary>
@@ -813,7 +813,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
-                    return result is not null;
+                    return {{BuildIsNotNullExpression("result", props.Definition.FeatureSupport)}};
                 }
                 
                 /// <summary>
@@ -825,7 +825,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{props.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
-                    return result is not null;
+                    return {{BuildIsNotNullExpression("result", props.Definition.FeatureSupport)}};
                 }
                 
                 /// <summary>
@@ -834,7 +834,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(string? serializedValue)
-                    => Deserialize(serializedValue) is not null;
+                    => {{BuildIsNotNullExpression("Deserialize(serializedValue)", props.Definition.FeatureSupport)}};
                 
                 /// <summary>
                 /// Determines whether a declared value has the specified case-sensitive source member name.
@@ -842,7 +842,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
-                    => Deserialize(serializedValue) is not null;
+                    => {{BuildIsNotNullExpression("Deserialize(serializedValue)", props.Definition.FeatureSupport)}};
                 """;
 
             static string BuildDictionaryDeclaration(EnumValueDefinition[] enumValues, EnumClassProps props)
@@ -1062,6 +1062,13 @@ internal class EnumClassDeclarationTemplate
             => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.IntKeys);
     }
 
+
+    private static string BuildIsNotNullExpression(
+        string expression,
+        FeatureSupportState featureSupport)
+        => featureSupport.NotPattern.IsSupported
+            ? $"{expression} is not null"
+            : $"{expression} != null";
 
     public const string ValuesBySerializedUtf8NameSpanLookupVariableName = "_valuesBySerializedUtf8NameSpanLookup";
 }
