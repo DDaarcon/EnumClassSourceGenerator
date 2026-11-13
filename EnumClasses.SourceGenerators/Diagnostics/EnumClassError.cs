@@ -166,4 +166,15 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic EnumIndexAssignedInCompileTimeValueInitializer(Location? valueLocation, string valueName, string declarationName)
+        => Diagnostic.Create(EnumIndexAssignedInCompileTimeValueInitializerDescriptor, valueLocation, valueName, declarationName);
+    public static readonly DiagnosticDescriptor EnumIndexAssignedInCompileTimeValueInitializerDescriptor =
+        new(
+            id: "ENUMCLGEN017",
+            title: "Compile-time EnumIndex must not be assigned in a value initializer",
+            messageFormat: "Enum Class value '{0}' on '{1}' must not assign EnumIndex in its initializer when IndexAssignmentMode is CompileTime",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

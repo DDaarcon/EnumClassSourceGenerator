@@ -283,6 +283,64 @@ public class EnumClassValueAttributeTests
     }
 
     [Fact]
+    public void When_CompileTimeIndexIsAssignedInValueInitializers_Then_ShouldReportErrorsAtValues()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.CompileTime)]
+            internal partial class CompileTimeIndexedEnum
+            {
+                public static CompileTimeIndexedEnum Property { get; } = new() { EnumIndex = 10 };
+                public static readonly CompileTimeIndexedEnum Field = new() { EnumIndex = 20 };
+            }
+            """;
+
+        var (result, _) = RunGenerator(source);
+
+        var diagnostics = result.Diagnostics
+            .Where(x => x.Id == "ENUMCLGEN017")
+            .ToArray();
+
+        diagnostics.Should().HaveCount(2);
+        diagnostics.Should().OnlyContain(x => x.Severity == DiagnosticSeverity.Error);
+        diagnostics.Select(x => x.GetMessage()).Should().BeEquivalentTo(
+            "Enum Class value 'Property' on 'CompileTimeIndexedEnum' must not assign EnumIndex in its initializer when IndexAssignmentMode is CompileTime",
+            "Enum Class value 'Field' on 'CompileTimeIndexedEnum' must not assign EnumIndex in its initializer when IndexAssignmentMode is CompileTime");
+        diagnostics.Select(x => x.Location.SourceTree!.GetText().ToString(x.Location.SourceSpan))
+            .Should().BeEquivalentTo(
+                "public static CompileTimeIndexedEnum Property { get; } = new() { EnumIndex = 10 };",
+                "Field = new() { EnumIndex = 20 }");
+    }
+
+    [Fact]
+    public void When_RuntimeIndexIsAssignedInValueInitializer_Then_ShouldNotReportCompileTimeAssignmentError()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(
+                GenerateJsonConverter = false,
+                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
+            internal partial class RuntimeIndexedEnum
+            {
+                public static RuntimeIndexedEnum Value { get; } = new() { EnumIndex = 10 };
+            }
+            """;
+
+        var (result, outputCompilation) = RunGenerator(source);
+
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN017");
+        GetErrors(outputCompilation).Should().BeEmpty();
+    }
+
+    [Fact]
     public void When_RuntimeIndexDictionaryIsForced_Then_ShouldValidateAndCollectInOneDictionary()
     {
         const string source = """

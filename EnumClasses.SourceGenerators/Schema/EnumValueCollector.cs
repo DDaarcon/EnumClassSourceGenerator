@@ -31,6 +31,7 @@ internal static class EnumValueCollector
     /// <param name="Location">The source location of the declaration.</param>
     /// <param name="FullyQualifiedCustomType">The fully qualified derived type, or <see langword="null"/> for the enum-class type itself.</param>
     /// <param name="HasSharedExplicitIndex">Whether one explicit index is applied to multiple comma-separated values.</param>
+    /// <param name="AssignsEnumIndexInInitializer">Whether the value's object initializer assigns <c>EnumIndex</c>.</param>
     /// <param name="DiagnosticReports">Diagnostics associated with the candidate.</param>
     internal record struct Definition(
         int InternalIndex,
@@ -43,6 +44,7 @@ internal static class EnumValueCollector
         Location Location,
         string? FullyQualifiedCustomType,
         bool HasSharedExplicitIndex,
+        bool AssignsEnumIndexInInitializer,
         IEnumerable<Diagnostic>? DiagnosticReports)
     {
         public readonly bool IsValid => !HasSharedExplicitIndex
@@ -131,6 +133,7 @@ internal static class EnumValueCollector
                     Location: location,
                     FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                     HasSharedExplicitIndex: false,
+                    AssignsEnumIndexInInitializer: AssignsEnumIndex(propertySyntax.Initializer),
                     DiagnosticReports: reports);
             })
             .ToArray();
@@ -231,6 +234,7 @@ internal static class EnumValueCollector
                         Location: location,
                         FullyQualifiedCustomType: !isOfMainType ? fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
                         HasSharedExplicitIndex: hasSharedExplicitIndex,
+                        AssignsEnumIndexInInitializer: AssignsEnumIndex(variable.Initializer),
                         DiagnosticReports: reports);
                 });
             })
@@ -246,6 +250,25 @@ internal static class EnumValueCollector
         var conversion = compilation.ClassifyConversion(fieldType, baseType);
 
         return conversion.Exists && conversion.IsImplicit;
+    }
+
+    private static bool AssignsEnumIndex(EqualsValueClauseSyntax? initializer)
+    {
+        var objectInitializer = initializer?.Value switch
+        {
+            ObjectCreationExpressionSyntax objectCreation => objectCreation.Initializer,
+            ImplicitObjectCreationExpressionSyntax implicitObjectCreation => implicitObjectCreation.Initializer,
+            _ => null
+        };
+
+        return objectInitializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .Any(assignment => assignment.Left switch
+            {
+                IdentifierNameSyntax identifier => identifier.Identifier.ValueText == "EnumIndex",
+                MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText == "EnumIndex",
+                _ => false
+            }) is true;
     }
 
 
@@ -320,6 +343,16 @@ internal static class EnumValueCollector
         while (internalIndexCounter < data.Length)
         {
             var valueData = data[internalIndexCounter];
+
+            if (valueData.AssignsEnumIndexInInitializer)
+            {
+                var reports = valueData.DiagnosticReports?.ToList() ?? [];
+                reports.Add(EnumClassError.EnumIndexAssignedInCompileTimeValueInitializer(
+                    valueData.Location,
+                    valueData.NormalizedName,
+                    declarationName));
+                valueData = valueData with { DiagnosticReports = reports };
+            }
 
             var resolvedIndex = resolvedIndexesInInternalIndexOrder[internalIndexCounter];
             if (valueData.HasSharedExplicitIndex)
@@ -396,6 +429,7 @@ internal static class EnumValueCollector
                 Location: valueData.Location,
                 FullyQualifiedCustomType: valueData.FullyQualifiedCustomType,
                 HasSharedExplicitIndex: valueData.HasSharedExplicitIndex,
+                AssignsEnumIndexInInitializer: valueData.AssignsEnumIndexInInitializer,
                 DiagnosticReports: valueData.DiagnosticReports);
         }
 
@@ -414,5 +448,6 @@ internal static class EnumValueCollector
         Location Location,
         string? FullyQualifiedCustomType,
         bool HasSharedExplicitIndex,
+        bool AssignsEnumIndexInInitializer,
         List<Diagnostic>? DiagnosticReports);
 }

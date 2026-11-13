@@ -199,6 +199,7 @@ Runtime indexing combined with raw generation produces warning `ENUMCLGEN015` to
 | `ENUMCLGEN014` | Error | One explicit index attribute is shared by multiple comma-separated fields. |
 | `ENUMCLGEN015` | Warning | Runtime indexes and generated raw-enum numeric values are independent. |
 | `ENUMCLGEN016` | Error | An unsupported `IndexAssignmentMode` numeric value was configured. |
+| `ENUMCLGEN017` | Error | A value initializer assigns `EnumIndex` while using compile-time index assignment. |
 
 Generator errors intentionally prevent the affected values from participating in the generated contract; do not suppress them as a compatibility strategy.
 
