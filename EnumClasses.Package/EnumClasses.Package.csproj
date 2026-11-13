@@ -6,7 +6,7 @@
 	  <Nullable>enable</Nullable>
 
 	  <PackageId>DDaarcon.EnumClasses</PackageId>
-	  <Version>0.1.2-preview.1</Version>
+	  <Version>0.1.2-preview.2</Version>
 	  <Authors>DDaarcon</Authors>
 	  <Description>Source-generated enum-class types for C#.</Description>
 	  <PackageTags>enum smart-enum source-generator roslyn</PackageTags>
