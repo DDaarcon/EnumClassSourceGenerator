@@ -5,7 +5,7 @@ namespace EnumClasses.SourceGenerators.FeatureSupport;
 internal record struct FeatureSupportState(
     Status AlternateLookup,
     Status RequiredKeyword,
-    Status InitKeyword) // TODO apply in template
+    Status InitKeyword)
 {
     internal enum Status
     {

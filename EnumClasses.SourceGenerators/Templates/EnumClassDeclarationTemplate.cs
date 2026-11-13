@@ -298,7 +298,7 @@ internal class EnumClassDeclarationTemplate
                         public {{(props.Definition.FeatureSupport.RequiredKeyword.IsSupported ? "required " : "")}}int EnumIndex
                         {
                             get => _enumIndex;
-                            init
+                            {{(props.Definition.FeatureSupport.InitKeyword.IsSupported ? "init" : "set")}}
                             {
                                 _enumIndex = value;
                                 _enumIndexAssigned = true;
@@ -307,14 +307,14 @@ internal class EnumClassDeclarationTemplate
                         """;
 
                 // IndexAssignmentMode.RuntimeAtValueCreation
-                return """
+                return $$"""
                     private int _enumIndex;
                     private bool _enumIndexAssigned;
 
                     public int EnumIndex
                     {
                         get => _enumIndex;
-                        init
+                        {{(props.Definition.FeatureSupport.InitKeyword.IsSupported ? "init" : "set")}}
                         {
                             _enumIndex = value;
                             _enumIndexAssigned = true;

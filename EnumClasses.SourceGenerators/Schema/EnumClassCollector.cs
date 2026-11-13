@@ -205,10 +205,18 @@ internal static class EnumClassCollector
     public static Definition.WithConfig ResolveConfiguration(Definition.WithConfig collectedDefinition, Configuration configuration)
     {
         var definition = collectedDefinition.Definition;
-        Diagnostic[] configurationDiagnostics = configuration is
-            { IndexAssignmentMode.IsRuntime: true, GenerateRawEnum: true }
-                ? [EnumClassWarning.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation)]
-                : [];
+        var configurationDiagnostics = new List<Diagnostic>();
+
+        if (configuration is { IndexAssignmentMode.IsRuntime: true, GenerateRawEnum: true })
+            configurationDiagnostics.Add(EnumClassWarning.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation));
+
+        if (configuration.IndexAssignmentMode.IsRuntime
+            && !definition.FeatureSupport.InitKeyword.IsSupported)
+        {
+            configurationDiagnostics.Add(EnumClassWarning.InitKeywordUnavailable(
+                definition.AttributeLocation,
+                definition.DeclarationName!));
+        }
 
         if (definition.Status is Definition.StatusCode.InvalidClassDeclaration)
         {

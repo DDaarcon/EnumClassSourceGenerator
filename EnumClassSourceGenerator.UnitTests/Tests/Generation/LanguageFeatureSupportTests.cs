@@ -26,6 +26,35 @@ public class LanguageFeatureSupportTests
         GetGeneratedSource(result).Should().Contain("public required int EnumIndex");
     }
 
+    [Fact]
+    public void When_InitKeywordIsUnsupported_Then_ShouldUseSetAndReportWarningOnEnumClassAttribute()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp8);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("\n    set\n");
+        generatedSource.Should().NotContain("\n    init\n");
+
+        var warning = result.Diagnostics.Should().ContainSingle(diagnostic =>
+                diagnostic.Id == "ENUMCLGEN018"
+                && diagnostic.Severity == DiagnosticSeverity.Warning)
+            .Which;
+        warning.GetMessage().Should().Contain("using a public set accessor instead");
+        warning.GetMessage().Should().Contain("may make index lookups inconsistent");
+        warning.Location.SourceTree.Should().NotBeNull();
+        warning.Location.SourceTree!.GetText().ToString(warning.Location.SourceSpan)
+            .Should().StartWith("EnumClass(");
+    }
+
+    [Fact]
+    public void When_InitKeywordIsSupported_Then_ShouldUseInitWithoutFallbackWarning()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp9);
+
+        GetGeneratedSource(result).Should().Contain("\n    init\n");
+        result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "ENUMCLGEN018");
+    }
+
     private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(
         LanguageVersion languageVersion)
     {
@@ -39,7 +68,7 @@ public class LanguageFeatureSupportTests
                 IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class RuntimeIndexedEnum
             {
-                public static RuntimeIndexedEnum One { get; } = new() { EnumIndex = 1 };
+                public static RuntimeIndexedEnum One { get; } = new RuntimeIndexedEnum() { EnumIndex = 1 };
             }
             """;
 
