@@ -32,6 +32,10 @@
 				 Exclude="../EnumClasses.SharedSources/obj/**/*" />
 	</ItemGroup>
 
+	<ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0')) != 'true'">
+		<PackageReference Include="System.Collections.Immutable" Version="10.0.13" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<ProjectReference Include="../EnumClasses.SourceGenerators/EnumClasses.SourceGenerators.csproj"
 						  ReferenceOutputAssembly="false"

@@ -14,6 +14,9 @@ public class LanguageFeatureSupportTests
         var generatedSource = GetGeneratedSource(result);
         generatedSource.Should().Contain("public int EnumIndex");
         generatedSource.Should().NotContain("public required int EnumIndex");
+        generatedSource.Should().Contain(
+            "System.Collections.Immutable.ImmutableArray.Create<RuntimeIndexedEnum>(");
+        generatedSource.Should().NotContain("_allValues = [");
         GetErrors(outputCompilation).Should().NotContain(diagnostic =>
             diagnostic.GetMessage().Contains("required members", StringComparison.OrdinalIgnoreCase));
     }

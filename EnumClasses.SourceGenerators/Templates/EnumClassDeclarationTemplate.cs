@@ -181,9 +181,9 @@ internal class EnumClassDeclarationTemplate
                         ? string.Join(Consts.Nl, enumValues.Select(enumValue => $"{enumValue.Name}._rawValue = Raw.{enumValue.Name};"))
                         : "")}}
                             
-                    _allValues = [
+                    _allValues = System.Collections.Immutable.ImmutableArray.Create<{{props.Definition.DeclarationName}}>(
                         {{string.Join(Consts.CommaNl, enumValues.Select(enumValue => enumValue.Name))}}
-                    ];
+                    );
                 
                 
                     {{BuildSerializationDictionaryAssignmentWhenApplicable(enumValues, props)}}
