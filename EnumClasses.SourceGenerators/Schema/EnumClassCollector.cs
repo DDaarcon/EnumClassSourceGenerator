@@ -218,6 +218,14 @@ internal static class EnumClassCollector
                 definition.DeclarationName!));
         }
 
+        if (configuration.GenerateJsonConverter
+            && !definition.FeatureSupport.JsonConverter.IsSupported)
+        {
+            configurationDiagnostics.Add(EnumClassError.JsonConverterUnavailable(
+                definition.AttributeLocation,
+                definition.DeclarationName!));
+        }
+
         if (definition.Status is Definition.StatusCode.InvalidClassDeclaration)
         {
             return collectedDefinition with

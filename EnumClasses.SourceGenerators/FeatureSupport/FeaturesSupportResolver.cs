@@ -12,6 +12,8 @@ internal static class FeaturesSupportResolver
         Compilation compilation,
         CSharpParseOptions parseOptions)
     {
+        var spanBasedApis = GetSpanBasedApisSupport(compilation, parseOptions);
+
         return new FeatureSupportState(
             AlternateLookup: GetAlternateLookupSupport(compilation, parseOptions),
             Utf8StringLiteral: GetUtf8StringLiteralSupport(parseOptions),
@@ -19,7 +21,8 @@ internal static class FeaturesSupportResolver
             UnconstrainedTypeParameterNullableAnnotation:
                 GetUnconstrainedTypeParameterNullableAnnotationSupport(parseOptions),
             SwitchExpression: GetSwitchExpressionSupport(parseOptions),
-            SpanBasedApis: GetSpanBasedApisSupport(compilation, parseOptions),
+            SpanBasedApis: spanBasedApis,
+            JsonConverter: GetJsonConverterSupport(compilation, spanBasedApis),
             NotPattern: GetNotPatternSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
@@ -87,6 +90,33 @@ internal static class FeaturesSupportResolver
             || compilation.GetTypeByMetadataName("System.MemoryExtensions") is null)
         {
             return SupportStatus.Unsupported;
+        }
+
+        return SupportStatus.Supported;
+    }
+
+    private static SupportStatus GetJsonConverterSupport(
+        Compilation compilation,
+        SupportStatus spanBasedApis)
+    {
+        if (!spanBasedApis.IsSupported)
+            return SupportStatus.Unsupported;
+
+        string[] requiredTypes =
+        [
+            "System.Text.Json.JsonException",
+            "System.Text.Json.JsonSerializerOptions",
+            "System.Text.Json.JsonTokenType",
+            "System.Text.Json.Utf8JsonReader",
+            "System.Text.Json.Utf8JsonWriter",
+            "System.Text.Json.Serialization.JsonConverter`1",
+            "System.Text.Json.Serialization.JsonConverterAttribute"
+        ];
+
+        foreach (var typeName in requiredTypes)
+        {
+            if (compilation.GetTypeByMetadataName(typeName) is null)
+                return SupportStatus.Unsupported;
         }
 
         return SupportStatus.Supported;

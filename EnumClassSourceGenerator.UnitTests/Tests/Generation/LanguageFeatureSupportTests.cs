@@ -32,10 +32,9 @@ public class LanguageFeatureSupportTests
     [Fact]
     public void When_NullableDirectiveIsUnsupported_Then_ShouldExcludeIt()
     {
-        var (result, _) = RunGenerator(LanguageVersion.CSharp7, generateJsonConverter: true);
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7);
 
         GetGeneratedSource(result).Should().NotContain("#nullable");
-        GetGeneratedJsonConverterSource(result).Should().NotContain("#nullable");
     }
 
     [Fact]
@@ -53,7 +52,6 @@ public class LanguageFeatureSupportTests
     {
         var (result, _) = RunGenerator(
             LanguageVersion.CSharp7,
-            generateJsonConverter: true,
             generateRawEnum: true);
 
         var generatedSource = GetGeneratedSource(result);
@@ -67,13 +65,12 @@ public class LanguageFeatureSupportTests
         generatedSource.Should().NotContain("null!");
         generatedSource.Should().Contain("private Raw? _rawValue;");
 
-        GetGeneratedJsonConverterSource(result).Should().NotContain("RuntimeIndexedEnum?");
     }
 
     [Fact]
     public void When_NullableReferenceAnnotationsAreSupported_Then_ShouldIncludeThem()
     {
-        var (result, _) = RunGenerator(LanguageVersion.CSharp8);
+        var (result, _) = RunGenerator(LanguageVersion.CSharp8, generateJsonConverter: true);
 
         var generatedSource = GetGeneratedSource(result);
         generatedSource.Should().Contain("RuntimeIndexedEnum?");
@@ -82,6 +79,7 @@ public class LanguageFeatureSupportTests
         generatedSource.Should().Contain("System.Action?");
         generatedSource.Should().Contain("TValue?");
         generatedSource.Should().NotContain("public TResult? Match<TResult>(");
+        GetGeneratedJsonConverterSource(result).Should().Contain("RuntimeIndexedEnum?");
     }
 
     [Fact]
@@ -148,6 +146,36 @@ public class LanguageFeatureSupportTests
         generatedSource.Should().Contain(
             "ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)");
         generatedSource.Should().Contain("System.MemoryExtensions.AsSpan");
+    }
+
+    [Fact]
+    public void When_JsonConverterIsUnavailable_Then_ShouldReportErrorOnEnumClassAttribute()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7, generateJsonConverter: true);
+
+        var diagnostic = result.Diagnostics.Should().ContainSingle(x =>
+                x.Id == "ENUMCLGEN019"
+                && x.Severity == DiagnosticSeverity.Error)
+            .Which;
+        diagnostic.GetMessage().Should().Contain("requires C# 7.2 or later");
+        diagnostic.Location.SourceTree.Should().NotBeNull();
+        diagnostic.Location.SourceTree!.GetText().ToString(diagnostic.Location.SourceSpan)
+            .Should().StartWith("EnumClass(");
+
+        result.GeneratedSources.Should().NotContain(source =>
+            source.HintName == "Consumer.RuntimeIndexedEnumJsonConverter.g.cs");
+        GetGeneratedSource(result).Should().NotContain("JsonConverter(typeof(");
+    }
+
+    [Fact]
+    public void When_JsonConverterIsAvailable_Then_ShouldGenerateItWithoutDiagnostic()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7_2, generateJsonConverter: true);
+
+        result.Diagnostics.Should().NotContain(x => x.Id == "ENUMCLGEN019");
+        result.GeneratedSources.Should().Contain(source =>
+            source.HintName == "Consumer.RuntimeIndexedEnumJsonConverter.g.cs");
+        GetGeneratedSource(result).Should().Contain("JsonConverter(typeof(");
     }
 
     [Fact]

@@ -177,4 +177,18 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic JsonConverterUnavailable(
+        Location? attributeLocation,
+        string declarationName)
+        => Diagnostic.Create(JsonConverterUnavailableDescriptor, attributeLocation, declarationName);
+
+    public static readonly DiagnosticDescriptor JsonConverterUnavailableDescriptor =
+        new(
+            id: "ENUMCLGEN019",
+            title: "JSON converter generation is unavailable",
+            messageFormat: "Enum Class '{0}' enables JSON converter generation, but it requires C# 7.2 or later and compatible System.Text.Json and span APIs. Disable GenerateJsonConverter or update the consumer language version and framework references.",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

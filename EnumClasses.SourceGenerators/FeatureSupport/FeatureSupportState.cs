@@ -9,6 +9,7 @@ internal record struct FeatureSupportState(
     Status UnconstrainedTypeParameterNullableAnnotation,
     Status SwitchExpression,
     Status SpanBasedApis,
+    Status JsonConverter,
     Status NotPattern,
     Status RequiredKeyword,
     Status InitKeyword)

@@ -72,7 +72,7 @@ internal class EnumClassDeclarationTemplate
             {
 
                 {{BuildRemarksWhenAppliable(ctx)}}
-                {{(ctx.Config.GenerateJsonConverter ? $"[System.Text.Json.Serialization.JsonConverter(typeof({ctx.Definition.DeclarationName}.JsonConverter))]" : "")}}
+                {{(ctx.Config.GenerateJsonConverter && ctx.FeatureSupport.JsonConverter.IsSupported ? $"[System.Text.Json.Serialization.JsonConverter(typeof({ctx.Definition.DeclarationName}.JsonConverter))]" : "")}}
                 {{ctx.Definition.Modifier}} partial class {{ctx.Definition.DeclarationName}} : System.IEquatable<{{ctx.Definition.DeclarationName}}>
                 {
                     {{BuildConstructor(ctx)}}

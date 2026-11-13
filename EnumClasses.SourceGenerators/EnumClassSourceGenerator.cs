@@ -1,5 +1,6 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
 using EnumClasses.SourceGenerators.Diagnostics;
+using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.Schema;
 using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
@@ -92,7 +93,8 @@ namespace EnumClasses.SourceGenerators
                     return;
                 }
 
-                if (props.Configuration.GenerateJsonConverter)
+                if (props.Configuration.GenerateJsonConverter
+                    && props.Definition.FeatureSupport.JsonConverter.IsSupported)
                 {
                     context.AddSource($"{props.Definition.FullyQualifiedName}JsonConverter.g.cs",
                         SourceText.From(EnumClassSerializationConverterTemplate.Build(props), Encoding.UTF8));
