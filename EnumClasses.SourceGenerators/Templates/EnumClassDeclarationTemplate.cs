@@ -67,7 +67,7 @@ internal class EnumClassDeclarationTemplate
         var ctx = Context.Parse(props);
 
         return $$"""
-            #nullable enable
+            {{ctx.Definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable enable")}}
             namespace {{ctx.Definition.NamespaceName}}
             {
 
@@ -136,7 +136,7 @@ internal class EnumClassDeclarationTemplate
 
                 }
             }
-            #nullable disable
+            {{ctx.Definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable disable")}}
             """;
 
         static string BuildConstructor(Context ctx)
@@ -262,7 +262,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
                 {
                     result = GetByEnumIndex(index);
-                    return {{BuildIsNotNullExpression("result", ctx.FeatureSupport)}};
+                    return {{ctx.GetIsNotNullExpression("result")}};
                 }
                 
                 /// <summary>
@@ -271,7 +271,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="index">The enum index to find.</param>
                 /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsEnumIndex(int index)
-                    => {{BuildIsNotNullExpression("GetByEnumIndex(index)", ctx.FeatureSupport)}};
+                    => {{ctx.GetIsNotNullExpression("GetByEnumIndex(index)")}};
                 """;
 
             static string BuildProperty(Context ctx)
@@ -290,7 +290,7 @@ internal class EnumClassDeclarationTemplate
                         private int _enumIndex;
                         private bool _enumIndexAssigned;
 
-                        public {{(ctx.FeatureSupport.RequiredKeyword.IsSupported ? "required " : "")}}int EnumIndex
+                        public {{ctx.FeatureSupport.RequiredKeyword.IfSupportedOrNull("required ")}}int EnumIndex
                         {
                             get => _enumIndex;
                             {{(ctx.FeatureSupport.InitKeyword.IsSupported ? "init" : "set")}}
@@ -409,7 +409,7 @@ internal class EnumClassDeclarationTemplate
                         _ => null
                     };
 
-                    return {{BuildIsNotNullExpression("result", ctx.FeatureSupport)}};
+                    return {{ctx.GetIsNotNullExpression("result")}};
                 }
 
                 /// <summary>
@@ -806,7 +806,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
-                    return {{BuildIsNotNullExpression("result", ctx.FeatureSupport)}};
+                    return {{ctx.GetIsNotNullExpression("result")}};
                 }
                 
                 /// <summary>
@@ -818,7 +818,7 @@ internal class EnumClassDeclarationTemplate
                 public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
                 {
                     result = Deserialize(serializedValue);
-                    return {{BuildIsNotNullExpression("result", ctx.FeatureSupport)}};
+                    return {{ctx.GetIsNotNullExpression("result")}};
                 }
                 
                 /// <summary>
@@ -827,7 +827,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(string? serializedValue)
-                    => {{BuildIsNotNullExpression("Deserialize(serializedValue)", ctx.FeatureSupport)}};
+                    => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
                 
                 /// <summary>
                 /// Determines whether a declared value has the specified case-sensitive source member name.
@@ -835,7 +835,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
                 public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
-                    => {{BuildIsNotNullExpression("Deserialize(serializedValue)", ctx.FeatureSupport)}};
+                    => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
                 """;
 
             static string BuildDictionaryDeclaration(Context ctx)
@@ -1064,6 +1064,8 @@ internal class EnumClassDeclarationTemplate
                 LookupImplementationSelector.Target.IntKeys);
     }
 
+
+
     private sealed class Context
     {
         public EnumClassProps Props { get; }
@@ -1095,6 +1097,12 @@ internal class EnumClassDeclarationTemplate
             Func<EnumValueDefinition, string> selector)
             => string.Join(separator, EnumValues.Select(selector));
 
+        public string GetIsNotNullExpression(string expression)
+            => FeatureSupport.NotPattern.IsSupported
+                ? $"{expression} is not null"
+                : $"{expression} != null";
+
+
         private Context(
             EnumClassProps props,
             EnumValueDefinition[] enumValues,
@@ -1105,13 +1113,6 @@ internal class EnumClassDeclarationTemplate
             EnumValuesPerCustomTypes = enumValuesPerCustomTypes;
         }
     }
-
-    private static string BuildIsNotNullExpression(
-        string expression,
-        FeatureSupportState featureSupport)
-        => featureSupport.NotPattern.IsSupported
-            ? $"{expression} is not null"
-            : $"{expression} != null";
 
     public const string ValuesBySerializedUtf8NameSpanLookupVariableName = "_valuesBySerializedUtf8NameSpanLookup";
 }

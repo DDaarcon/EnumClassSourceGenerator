@@ -30,6 +30,25 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_NullableDirectiveIsUnsupported_Then_ShouldExcludeIt()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7, generateJsonConverter: true);
+
+        GetGeneratedSource(result).Should().NotContain("#nullable");
+        GetGeneratedJsonConverterSource(result).Should().NotContain("#nullable");
+    }
+
+    [Fact]
+    public void When_NullableDirectiveIsSupported_Then_ShouldIncludeIt()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp8, generateJsonConverter: true);
+
+        GetGeneratedSource(result).Should().Contain("#nullable enable").And.Contain("#nullable disable");
+        GetGeneratedJsonConverterSource(result)
+            .Should().Contain("#nullable enable").And.Contain("#nullable disable");
+    }
+
+    [Fact]
     public void When_InitKeywordIsUnsupported_Then_ShouldUseSetAndReportWarningOnEnumClassAttribute()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp8);
@@ -105,14 +124,15 @@ public class LanguageFeatureSupportTests
         var source = """
             using EnumClasses;
 
-            namespace Consumer;
-
-            [EnumClass(
-                GenerateJsonConverter = GENERATE_JSON_CONVERTER,
-                IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
-            internal partial class RuntimeIndexedEnum
+            namespace Consumer
             {
-                public static RuntimeIndexedEnum One { get; } = new RuntimeIndexedEnum() { EnumIndex = 1 };
+                [EnumClass(
+                    GenerateJsonConverter = GENERATE_JSON_CONVERTER,
+                    IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
+                internal partial class RuntimeIndexedEnum
+                {
+                    public static RuntimeIndexedEnum One { get; } = new RuntimeIndexedEnum() { EnumIndex = 1 };
+                }
             }
             """.Replace(
                 "GENERATE_JSON_CONVERTER",

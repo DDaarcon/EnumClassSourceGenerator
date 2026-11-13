@@ -17,7 +17,7 @@ internal class EnumClassSerializationConverterTemplate
             .ToArray();
 
         return $$"""
-            #nullable enable
+            {{definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable enable")}}
             
             namespace {{definition.NamespaceName}}
             {
@@ -41,7 +41,7 @@ internal class EnumClassSerializationConverterTemplate
                 }
             }
             
-            #nullable disable
+            {{definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable disable")}}
             """;
 
         static string BuildReadingLogic(EnumValueDefinition[] enumValues, EnumClassProps props)
