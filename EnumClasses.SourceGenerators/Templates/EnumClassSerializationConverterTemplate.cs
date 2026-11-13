@@ -63,9 +63,12 @@ internal class EnumClassSerializationConverterTemplate
                             Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
                                 value.ExplicitSerializedName ?? value.NormalizedName,
                                 quote: true);
+                        var utf8Suffix = props.Definition.FeatureSupport.Utf8StringLiteral.IsSupported
+                            ? "u8"
+                            : "";
 
                         return
-                            $"if (reader.ValueTextEquals({serializedName}u8)) " +
+                            $"if (reader.ValueTextEquals({serializedName}{utf8Suffix})) " +
                             $"return {props.Definition.DeclarationName}.{value.Name};";
                     }));
 

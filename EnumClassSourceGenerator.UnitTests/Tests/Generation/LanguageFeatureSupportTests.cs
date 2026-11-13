@@ -58,22 +58,44 @@ public class LanguageFeatureSupportTests
         result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "ENUMCLGEN018");
     }
 
-    private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(
-        LanguageVersion languageVersion)
+    [Fact]
+    public void When_Utf8StringLiteralIsUnsupported_Then_ShouldUseStringComparison()
     {
-        const string source = """
+        var (result, _) = RunGenerator(LanguageVersion.CSharp10, generateJsonConverter: true);
+
+        var generatedSource = GetGeneratedJsonConverterSource(result);
+        generatedSource.Should().Contain("reader.ValueTextEquals(\"One\")");
+        generatedSource.Should().NotContain("reader.ValueTextEquals(\"One\"u8)");
+    }
+
+    [Fact]
+    public void When_Utf8StringLiteralIsSupported_Then_ShouldUseUtf8Comparison()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp11, generateJsonConverter: true);
+
+        GetGeneratedJsonConverterSource(result)
+            .Should().Contain("reader.ValueTextEquals(\"One\"u8)");
+    }
+
+    private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(
+        LanguageVersion languageVersion,
+        bool generateJsonConverter = false)
+    {
+        var source = """
             using EnumClasses;
 
             namespace Consumer;
 
             [EnumClass(
-                GenerateJsonConverter = false,
+                GenerateJsonConverter = GENERATE_JSON_CONVERTER,
                 IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
             internal partial class RuntimeIndexedEnum
             {
                 public static RuntimeIndexedEnum One { get; } = new RuntimeIndexedEnum() { EnumIndex = 1 };
             }
-            """;
+            """.Replace(
+                "GENERATE_JSON_CONVERTER",
+                generateJsonConverter ? "true" : "false");
 
         var parseOptions = new CSharpParseOptions(languageVersion);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
@@ -103,6 +125,12 @@ public class LanguageFeatureSupportTests
     private static string GetGeneratedSource(GeneratorRunResult result)
         => result.GeneratedSources
             .Single(x => x.HintName == "Consumer.RuntimeIndexedEnum.g.cs")
+            .SourceText
+            .ToString();
+
+    private static string GetGeneratedJsonConverterSource(GeneratorRunResult result)
+        => result.GeneratedSources
+            .Single(x => x.HintName == "Consumer.RuntimeIndexedEnumJsonConverter.g.cs")
             .SourceText
             .ToString();
 

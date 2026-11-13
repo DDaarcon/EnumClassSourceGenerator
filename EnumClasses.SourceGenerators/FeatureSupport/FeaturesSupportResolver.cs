@@ -17,6 +17,7 @@ internal static class FeaturesSupportResolver
     {
         return new FeatureSupportState(
             AlternateLookup: GetAlternateLookupSupport(compilation, parseOptions),
+            Utf8StringLiteral: GetUtf8StringLiteralSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
     }
@@ -54,6 +55,14 @@ internal static class FeaturesSupportResolver
         }
 
         return SupportStatus.Supported;
+    }
+
+    private static SupportStatus GetUtf8StringLiteralSupport(
+        CSharpParseOptions parseOptions)
+    {
+        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp11)
+            return SupportStatus.Supported;
+        return SupportStatus.Unsupported;
     }
 
     private static SupportStatus GetRequiredKeywordSupport(
