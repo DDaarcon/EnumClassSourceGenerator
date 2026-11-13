@@ -291,11 +291,11 @@ internal class EnumClassDeclarationTemplate
                         """;
 
                 if (props.Configuration.IndexAssignmentMode is IndexAssignmentMode.RuntimeAtValueInit)
-                    return """
+                    return $$"""
                         private int _enumIndex;
                         private bool _enumIndexAssigned;
 
-                        public required int EnumIndex
+                        public {{(props.Definition.FeatureSupport.RequiredKeyword.IsSupported ? "required " : "")}}int EnumIndex
                         {
                             get => _enumIndex;
                             init

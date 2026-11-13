@@ -59,7 +59,7 @@ internal static class FeaturesSupportResolver
     private static SupportStatus GetRequiredKeywordSupport(
         CSharpParseOptions parseOptions)
     {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp12)
+        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp11)
             return SupportStatus.Supported;
         return SupportStatus.Unsupported;
     }
