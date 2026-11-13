@@ -9,13 +9,7 @@
 Install the package from NuGet:
 
 ```console
-dotnet add package DDaarcon.EnumClasses --version 0.1.0-preview.1
-```
-
-or add a package reference:
-
-```xml
-<PackageReference Include="DDaarcon.EnumClasses" Version="0.1.0-preview.1" />
+dotnet add package DDaarcon.EnumClasses
 ```
 
 The package supplies both the public attributes and the analyzer/source generator; no separate analyzer reference is required.
