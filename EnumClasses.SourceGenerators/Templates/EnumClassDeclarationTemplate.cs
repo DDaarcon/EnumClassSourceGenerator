@@ -207,9 +207,13 @@ internal class EnumClassDeclarationTemplate
                 if (GetLookupImplementationForStringKeys(ctx) is not LookupImplementation.Dictionary)
                     return "";
 
-                var dictAssignment = $"""
-                    _valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName, System.StringComparer.Ordinal);
-                    """;
+                var dictAssignment = ctx.FeatureSupport.FrozenDictionary.IsSupported
+                    ? """
+                        _valuesBySerializedName = System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues, x => x._serializedName, System.StringComparer.Ordinal);
+                        """
+                    : """
+                        _valuesBySerializedName = System.Linq.Enumerable.ToDictionary(_allValues, x => x._serializedName, System.StringComparer.Ordinal);
+                        """;
 
                 if (ctx.FeatureSupport.AlternateLookup.IsSupported)
                     return dictAssignment + $$"""
@@ -259,7 +263,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="index">The enum index to find.</param>
                 /// <param name="result">The matching declared value, or <see langword="null"/> when no value has the index.</param>
                 /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
-                public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
+                public static bool TryGetByEnumIndex(int index,{{ctx.FeatureSupport.NotNullWhenAttribute.IfSupportedOrNull(" [System.Diagnostics.CodeAnalysis.NotNullWhen(true)]")}} out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = GetByEnumIndex(index);
                     return {{ctx.GetIsNotNullExpression("result")}};
@@ -412,7 +416,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="value">The raw value to convert.</param>
                 /// <param name="result">The corresponding declared value, or <see langword="null"/> when the raw value is not defined.</param>
                 /// <returns><see langword="true"/> when <paramref name="value"/> is defined; otherwise, <see langword="false"/>.</returns>
-                public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
+                public static bool TryFromRaw(Raw value,{{ctx.FeatureSupport.NotNullWhenAttribute.IfSupportedOrNull(" [System.Diagnostics.CodeAnalysis.NotNullWhen(true)]")}} out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     {{BuildRawValueAssignment(ctx)}}
 
@@ -734,7 +738,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="value">The declared value to inspect.</param>
                 /// <param name="typeMatchingValue">The value cast to <typeparamref name="TValue"/>, or <see langword="null"/> when it does not match.</param>
                 /// <returns><see langword="true"/> when <paramref name="value"/> is declared as <typeparamref name="TValue"/>; otherwise, <see langword="false"/>.</returns>
-                public static bool TryGetOfType<TValue>({{ctx.Definition.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType("TValue")}} typeMatchingValue)
+                public static bool TryGetOfType<TValue>({{ctx.Definition.DeclarationName}} value,{{ctx.FeatureSupport.NotNullWhenAttribute.IfSupportedOrNull(" [System.Diagnostics.CodeAnalysis.NotNullWhen(true)]")}} out {{ctx.GetNullableReferenceType("TValue")}} typeMatchingValue)
                     where TValue : {{ctx.Definition.DeclarationName}}
                 {
                     var checkedType = typeof(TValue);
@@ -765,10 +769,32 @@ internal class EnumClassDeclarationTemplate
 
             if (GetLookupImplementationForIntKeys(ctx) is LookupImplementation.Dictionary)
             {
-                return $$"""
-                    private static {{ctx.GetNullableReferenceType($"System.Collections.Frozen.FrozenDictionary<int, {ctx.Definition.DeclarationName}>")}} _valuesByEnumIndex;
+                var dictionaryType = ctx.GetDictionaryType("int");
+                var returnDictionary = ctx.FeatureSupport.FrozenDictionary.IsSupported
+                    ? "return System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(valuesByEnumIndex);"
+                    : "return valuesByEnumIndex;";
+                var addValueToDictionary = ctx.FeatureSupport.DictionaryTryAdd.IsSupported
+                    ? """
+                        if (!valuesByEnumIndex.TryAdd(value._enumIndex, value))
+                        {
+                            throw new System.InvalidOperationException(
+                                $"EnumIndex {value._enumIndex} is assigned more than once.");
+                        }
+                        """
+                    : """
+                        if (valuesByEnumIndex.ContainsKey(value._enumIndex))
+                        {
+                            throw new System.InvalidOperationException(
+                                $"EnumIndex {value._enumIndex} is assigned more than once.");
+                        }
 
-                    private static System.Collections.Frozen.FrozenDictionary<int, {{ctx.Definition.DeclarationName}}> CreateRuntimeIndexDictionary()
+                        valuesByEnumIndex.Add(value._enumIndex, value);
+                        """;
+
+                return $$"""
+                    private static {{ctx.GetNullableReferenceType(dictionaryType)}} _valuesByEnumIndex;
+
+                    private static {{dictionaryType}} CreateRuntimeIndexDictionary()
                     {
                         var valuesByEnumIndex = new System.Collections.Generic.Dictionary<int, {{ctx.Definition.DeclarationName}}>(_allValues.Length);
 
@@ -780,14 +806,10 @@ internal class EnumClassDeclarationTemplate
                                     "Every declared {{ctx.Definition.DeclarationName}} value must assign EnumIndex.");
                             }
 
-                            if (!valuesByEnumIndex.TryAdd(value._enumIndex, value))
-                            {
-                                throw new System.InvalidOperationException(
-                                    $"EnumIndex {value._enumIndex} is assigned more than once.");
-                            }
+                            {{addValueToDictionary}}
                         }
 
-                        return System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(valuesByEnumIndex);
+                        {{returnDictionary}}
                     }
                     """;
             }
@@ -850,7 +872,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool TryDeserialize({{ctx.GetNullableReferenceType("string")}} serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
+                public static bool TryDeserialize({{ctx.GetNullableReferenceType("string")}} serializedValue,{{ctx.FeatureSupport.NotNullWhenAttribute.IfSupportedOrNull(" [System.Diagnostics.CodeAnalysis.NotNullWhen(true)]")}} out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = Deserialize(serializedValue);
                     return {{ctx.GetIsNotNullExpression("result")}};
@@ -881,7 +903,7 @@ internal class EnumClassDeclarationTemplate
                     /// <param name="serializedValue">The source member name to find.</param>
                     /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
                     /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                    public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
+                    public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue,{{ctx.FeatureSupport.NotNullWhenAttribute.IfSupportedOrNull(" [System.Diagnostics.CodeAnalysis.NotNullWhen(true)]")}} out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                     {
                         result = Deserialize(serializedValue);
                         return {{ctx.GetIsNotNullExpression("result")}};
@@ -910,8 +932,8 @@ internal class EnumClassDeclarationTemplate
                 if (GetLookupImplementationForStringKeys(ctx) is not LookupImplementation.Dictionary)
                     return "";
 
-                var dictAssignment = $"""
-                    private static {ctx.GetNullableReferenceType($"System.Collections.Frozen.FrozenDictionary<string, {ctx.Definition.DeclarationName}>")} _valuesBySerializedName;
+                var dictAssignment = $$"""
+                    private static {{ctx.GetNullableReferenceType(ctx.GetDictionaryType("string"))}} _valuesBySerializedName;
                     """;
 
                 if (ctx.FeatureSupport.AlternateLookup.IsSupported)
@@ -1174,6 +1196,11 @@ internal class EnumClassDeclarationTemplate
         public EnumValueDefinition[] EnumValues { get; }
         public IEnumerable<IGrouping<string?, EnumValueDefinition>>? EnumValuesPerCustomTypes { get; }
         public bool HasAnyCustomTypesForEnumValues => EnumValuesPerCustomTypes is not null;
+
+        public string GetDictionaryType(string keyType)
+            => FeatureSupport.FrozenDictionary.IsSupported
+                ? $"System.Collections.Frozen.FrozenDictionary<{keyType}, {Definition.DeclarationName}>"
+                : $"System.Collections.Generic.Dictionary<{keyType}, {Definition.DeclarationName}>";
 
         public static Context Parse(EnumClassProps props)
         {

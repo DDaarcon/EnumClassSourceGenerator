@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFramework>net8.0</TargetFramework> <!-- Likely the oldest compatiable framework due to usage of e.g. FrozenDictionary, init -->
+	  <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
 	  <LangVersion>12.0</LangVersion>
 	  <Nullable>enable</Nullable>
 
@@ -24,16 +24,27 @@
   </PropertyGroup>
 
 	<ItemGroup>
-		<None Update="LICENSE.txt" Pack="true" PackagePath="/" />
-		<None Update="README.md" Pack="true" PackagePath="/" />
+		<None Remove="LICENSE.txt" />
+		<None Remove="README.md" />
+
+		<None Include="LICENSE.txt"
+			  Pack="true"
+			  PackagePath="/" />
+		<None Include="README.md"
+			  Pack="true"
+			  PackagePath="/" />
 
 		<Compile Include="../EnumClasses.SharedSources/**/*.cs"
 				 Link="%(RecursiveDir)%(Filename)%(Extension)"
 				 Exclude="../EnumClasses.SharedSources/obj/**/*" />
 	</ItemGroup>
 
-	<ItemGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0')) != 'true'">
+
+	<!-- Only include these packages for non-.NETCoreApp targets (i.e., netstandard2.0) -->
+	<ItemGroup Condition="'$(TargetFrameworkIdentifier)' != '.NETCoreApp'">
 		<PackageReference Include="System.Collections.Immutable" Version="10.0.13" />
+		<PackageReference Include="System.Text.Json" Version="10.0.14" />
+		<PackageReference Include="System.Memory" Version="4.6.3" />
 	</ItemGroup>
 
 	<ItemGroup>

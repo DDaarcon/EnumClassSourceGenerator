@@ -13,9 +13,12 @@ internal static class FeaturesSupportResolver
         CSharpParseOptions parseOptions)
     {
         var spanBasedApis = GetSpanBasedApisSupport(compilation, parseOptions);
+        var frozenDictionary = GetFrozenDictionarySupport(compilation);
 
         return new FeatureSupportState(
-            AlternateLookup: GetAlternateLookupSupport(compilation, parseOptions),
+            AlternateLookup: GetAlternateLookupSupport(compilation, parseOptions, frozenDictionary),
+            DictionaryTryAdd: GetDictionaryTryAddSupport(compilation),
+            FrozenDictionary: frozenDictionary,
             Utf8StringLiteral: GetUtf8StringLiteralSupport(parseOptions),
             NullableReferenceTypes: GetNullableReferenceTypesSupport(parseOptions),
             UnconstrainedTypeParameterNullableAnnotation:
@@ -25,7 +28,8 @@ internal static class FeaturesSupportResolver
             JsonConverter: GetJsonConverterSupport(compilation, spanBasedApis),
             NotPattern: GetNotPatternSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
-            InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
+            InitKeyword: GetInitKeywordSupport(compilation, parseOptions),
+            NotNullWhenAttribute: GetNotNullWhenAttributeSupport(compilation));
     }
 
     /// <summary>
@@ -33,9 +37,11 @@ internal static class FeaturesSupportResolver
     /// </summary>
     private static SupportStatus GetAlternateLookupSupport(
         Compilation compilation,
-        CSharpParseOptions parseOptions)
+        CSharpParseOptions parseOptions,
+        SupportStatus frozenDictionarySupport)
     {
-        if (parseOptions.LanguageVersion < LanguageVersion.CSharp13)
+        if (parseOptions.LanguageVersion < LanguageVersion.CSharp13
+            || !frozenDictionarySupport.IsSupported)
             return SupportStatus.Unsupported;
 
         var alternateComparer = compilation.GetTypeByMetadataName(
@@ -62,6 +68,34 @@ internal static class FeaturesSupportResolver
 
         return SupportStatus.Supported;
     }
+
+    private static SupportStatus GetFrozenDictionarySupport(Compilation compilation)
+        => compilation.GetTypeByMetadataName("System.Collections.Frozen.FrozenDictionary`2") is null
+            ? SupportStatus.Unsupported
+            : SupportStatus.Supported;
+
+    private static SupportStatus GetDictionaryTryAddSupport(Compilation compilation)
+    {
+        var dictionary = compilation.GetTypeByMetadataName(
+            "System.Collections.Generic.Dictionary`2");
+
+        if (dictionary is null)
+            return SupportStatus.Unsupported;
+
+        return dictionary
+            .GetMembers("TryAdd")
+            .OfType<IMethodSymbol>()
+            .Any(method =>
+                method.Parameters.Length == 2
+                && method.ReturnType.SpecialType == SpecialType.System_Boolean)
+                    ? SupportStatus.Supported
+                    : SupportStatus.Unsupported;
+    }
+
+    private static SupportStatus GetNotNullWhenAttributeSupport(Compilation compilation)
+        => compilation.GetTypeByMetadataName("System.Diagnostics.CodeAnalysis.NotNullWhenAttribute") is null
+            ? SupportStatus.Unsupported
+            : SupportStatus.Supported;
 
     private static SupportStatus GetUtf8StringLiteralSupport(
         CSharpParseOptions parseOptions)

@@ -4,6 +4,8 @@ namespace EnumClasses.SourceGenerators.FeatureSupport;
 
 internal record struct FeatureSupportState(
     Status AlternateLookup,
+    Status DictionaryTryAdd,
+    Status FrozenDictionary,
     Status Utf8StringLiteral,
     Status NullableReferenceTypes,
     Status UnconstrainedTypeParameterNullableAnnotation,
@@ -12,7 +14,8 @@ internal record struct FeatureSupportState(
     Status JsonConverter,
     Status NotPattern,
     Status RequiredKeyword,
-    Status InitKeyword)
+    Status InitKeyword,
+    Status NotNullWhenAttribute)
 {
     internal enum Status
     {

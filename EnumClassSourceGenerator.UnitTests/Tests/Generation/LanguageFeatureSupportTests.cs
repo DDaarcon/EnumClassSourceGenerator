@@ -149,6 +149,72 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_FrozenDictionaryIsUnavailable_Then_ShouldUseDictionary()
+    {
+        var (result, outputCompilation) = RunGenerator(
+            LanguageVersion.CSharp7_2,
+            forceDictionaryLookups: true,
+            includeFrozenDictionary: false);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain(
+            "System.Collections.Generic.Dictionary<string, RuntimeIndexedEnum> _valuesBySerializedName;");
+        generatedSource.Should().Contain(
+            "System.Linq.Enumerable.ToDictionary(_allValues, x => x._serializedName");
+        generatedSource.Should().Contain(
+            "System.Collections.Generic.Dictionary<int, RuntimeIndexedEnum> _valuesByEnumIndex;");
+        generatedSource.Should().Contain(
+            "System.Collections.Generic.Dictionary<int, RuntimeIndexedEnum> CreateRuntimeIndexDictionary()");
+        generatedSource.Should().Contain("return valuesByEnumIndex;");
+        generatedSource.Should().NotContain("System.Collections.Frozen");
+        GetErrors(outputCompilation).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void When_FrozenDictionaryIsAvailable_Then_ShouldUseFrozenDictionary()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp7_2,
+            forceDictionaryLookups: true);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain(
+            "System.Collections.Frozen.FrozenDictionary<string, RuntimeIndexedEnum> _valuesBySerializedName;");
+        generatedSource.Should().Contain(
+            "System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(_allValues");
+        generatedSource.Should().Contain(
+            "System.Collections.Frozen.FrozenDictionary<int, RuntimeIndexedEnum> _valuesByEnumIndex;");
+        generatedSource.Should().Contain(
+            "System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(valuesByEnumIndex)");
+    }
+
+    [Fact]
+    public void When_DictionaryTryAddIsUnavailable_Then_ShouldUseContainsKeyAndAdd()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp7_2,
+            forceDictionaryLookups: true,
+            includeDictionaryTryAdd: false);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("valuesByEnumIndex.ContainsKey(value._enumIndex)");
+        generatedSource.Should().Contain("valuesByEnumIndex.Add(value._enumIndex, value);");
+        generatedSource.Should().NotContain("valuesByEnumIndex.TryAdd(");
+    }
+
+    [Fact]
+    public void When_DictionaryTryAddIsAvailable_Then_ShouldUseTryAdd()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp7_2,
+            forceDictionaryLookups: true);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("valuesByEnumIndex.TryAdd(value._enumIndex, value)");
+        generatedSource.Should().NotContain("valuesByEnumIndex.ContainsKey(");
+    }
+
+    [Fact]
     public void When_JsonConverterIsUnavailable_Then_ShouldReportErrorOnEnumClassAttribute()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp7, generateJsonConverter: true);
@@ -251,7 +317,10 @@ public class LanguageFeatureSupportTests
         LanguageVersion languageVersion,
         bool generateJsonConverter = false,
         bool generateRawEnum = false,
-        bool useRuntimeIndexes = true)
+        bool useRuntimeIndexes = true,
+        bool forceDictionaryLookups = false,
+        bool includeDictionaryTryAdd = true,
+        bool includeFrozenDictionary = true)
     {
         var source = """
             using EnumClasses;
@@ -261,7 +330,8 @@ public class LanguageFeatureSupportTests
                 [EnumClass(
                     GenerateJsonConverter = GENERATE_JSON_CONVERTER,
                     GenerateRawEnum = GENERATE_RAW_ENUM,
-                    IndexAssignmentMode = INDEX_ASSIGNMENT_MODE)]
+                    IndexAssignmentMode = INDEX_ASSIGNMENT_MODE,
+                    LookupMode = LOOKUP_MODE)]
                 internal partial class RuntimeIndexedEnum
                 {
                     public static SpecializedRuntimeIndexedEnum One { get; }
@@ -282,6 +352,11 @@ public class LanguageFeatureSupportTests
                     ? "IndexAssignmentMode.RuntimeAtValueInit"
                     : "IndexAssignmentMode.CompileTime")
             .Replace(
+                "LOOKUP_MODE",
+                forceDictionaryLookups
+                    ? "LookupMode.ForceDictionary"
+                    : "LookupMode.Automatic")
+            .Replace(
                 "ENUM_INDEX_ASSIGNMENT",
                 useRuntimeIndexes ? "{ EnumIndex = 1 }" : "");
 
@@ -290,11 +365,80 @@ public class LanguageFeatureSupportTests
         var referencePaths = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator)
             .Append(typeof(global::EnumClasses.EnumClassAttribute).Assembly.Location)
+            .Where(path => includeFrozenDictionary
+                || !String.Equals(
+                    Path.GetFileName(path),
+                    "System.Collections.Immutable.dll",
+                    StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var syntaxTrees = new List<SyntaxTree> { syntaxTree };
+        if (!includeDictionaryTryAdd)
+        {
+            syntaxTrees.Add(CSharpSyntaxTree.ParseText(
+                """
+                namespace System.Collections.Generic
+                {
+                    public class Dictionary<TKey, TValue>
+                    {
+                        public Dictionary(int capacity) { }
+                        public void Add(TKey key, TValue value) { }
+                        public bool ContainsKey(TKey key) { return false; }
+                        public bool TryGetValue(TKey key, out TValue value)
+                        {
+                            value = default(TValue);
+                            return false;
+                        }
+                    }
+                }
+                """,
+                parseOptions));
+        }
+
+        if (!includeFrozenDictionary)
+        {
+            syntaxTrees.Add(CSharpSyntaxTree.ParseText(
+                """
+                namespace System.Collections.Immutable
+                {
+                    public struct ImmutableArray<T> :
+                        System.Collections.Generic.IEnumerable<T>
+                    {
+                        private readonly T[] _values;
+
+                        public ImmutableArray(T[] values)
+                        {
+                            _values = values;
+                        }
+
+                        public int Length { get { return _values.Length; } }
+
+                        public System.Collections.Generic.IEnumerator<T> GetEnumerator()
+                        {
+                            return ((System.Collections.Generic.IEnumerable<T>)_values).GetEnumerator();
+                        }
+
+                        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+                        {
+                            return _values.GetEnumerator();
+                        }
+                    }
+
+                    public static class ImmutableArray
+                    {
+                        public static ImmutableArray<T> Create<T>(params T[] values)
+                        {
+                            return new ImmutableArray<T>(values);
+                        }
+                    }
+                }
+                """,
+                parseOptions));
+        }
 
         var compilation = CSharpCompilation.Create(
             assemblyName: "LanguageFeatureSupportTests",
-            syntaxTrees: [syntaxTree],
+            syntaxTrees: syntaxTrees,
             references: referencePaths.Select(path => MetadataReference.CreateFromFile(path)),
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
