@@ -136,10 +136,12 @@ public partial class HttpStatus
 }
 ```
 
-- `RuntimeAtValueInit` generates `required int EnumIndex { get; init; }`.
-- `RuntimeAtValueCreation` generates the same init-only assignment mechanism without `required`, allowing a constructor to enforce assignment instead.
+- `RuntimeAtValueInit` generates `required int EnumIndex { get; init; }` when those language/runtime features are available.
+- `RuntimeAtValueCreation` uses the same init-only assignment mechanism without `required`, allowing a constructor to enforce assignment instead.
 - Every declared value must actually assign an index, and indexes must be unique. Missing or duplicate assignments throw `InvalidOperationException` from the generated type initializer (observed by callers as `TypeInitializationException`).
 - `[EnumClassValue(index)]` produces warning `ENUMCLGEN013` in either runtime mode, and its index is ignored. The value assigned to the generated `EnumIndex` property by the initializer or constructor remains authoritative. Use parameterless `[EnumClassValue]` when only `SerializedName` or explicit marking is needed.
+
+The exact accessor follows consumer capabilities. `required` is emitted only when C# 11 and its supporting runtime metadata are available, and `init` is emitted only when C# 9 and `IsExternalInit` are available. Otherwise the generator uses a public `set` accessor and reports `ENUMCLGEN018`, because changing an index after initialization can make lookups inconsistent.
 
 ## Serialization and JSON
 
@@ -200,15 +202,18 @@ Runtime indexing combined with raw generation produces warning `ENUMCLGEN015` to
 | `ENUMCLGEN015` | Warning | Runtime indexes and generated raw-enum numeric values are independent. |
 | `ENUMCLGEN016` | Error | An unsupported `IndexAssignmentMode` numeric value was configured. |
 | `ENUMCLGEN017` | Error | A value initializer assigns `EnumIndex` while using compile-time index assignment. |
+| `ENUMCLGEN018` | Warning | Runtime indexing must use a mutable public setter because an `init` accessor is unavailable. |
+| `ENUMCLGEN019` | Error | JSON converter generation is enabled but the consumer lacks C# 7.2, compatible `System.Text.Json`, or required span APIs. |
 
 Generator errors intentionally prevent the affected values from participating in the generated contract; do not suppress them as a compatibility strategy.
 
 ## Requirements
 
-- Consumer target: .NET 8 or later. The package targets `net8.0` and generated code uses .NET 8 APIs including frozen collections.
-- C# language version: C# 12 or later. Runtime-at-init indexing emits `required` and all modes emit modern collection syntax.
-- `System.Text.Json` is required when JSON converter generation is enabled (the default).
-- .NET 9 / C# 13 consumers may receive more efficient alternate-key dictionary lookups; behavior is unchanged on .NET 8 / C# 12.
+- Package assets: `netstandard2.0`, `net8.0`, `net9.0`, and `net10.0`. The `netstandard2.0` asset allows use from compatible targets; the repository exercises it on .NET Framework 4.6.2 and .NET 6 in addition to testing the .NET 8 asset.
+- Language version: C# 7 is supported when JSON converter generation is disabled. The default JSON converter requires C# 7.2 or later plus compatible `System.Text.Json` and span APIs; otherwise generation reports `ENUMCLGEN019`.
+- `System.Collections.Immutable` is required by the generated public API. The `netstandard2.0` package asset brings the required compatibility dependencies, including `System.Text.Json` for the default converter.
+- Generated code selects APIs and syntax supported by the consumer. It uses regular dictionaries when frozen collections are unavailable, omits nullable annotations on pre-C# 8 consumers, and uses the runtime-index accessor fallback described above when `init` or `required` is unavailable.
+- .NET 9 / C# 13 consumers may receive more efficient alternate-key dictionary lookups; this changes implementation, not behavior.
 
 ## Limitations and compatibility notes
 
@@ -219,6 +224,7 @@ Generator errors intentionally prevent the affected values from participating in
 - Equality is singleton/reference identity, not structural equality. `ConstructionRestrictionMode.Off`, derived types, and accessible protected constructors can permit undeclared instances; lookup and exhaustive helpers only know the declared static values.
 - Declaration order affects `AllValues`, implicit compile-time indexes, raw-enum numbers, and generated matching method signatures.
 - Runtime index validity is checked when the generated type initializes, not at source-generation time.
+- On consumers without C# 9 and accessible `IsExternalInit`, runtime `EnumIndex` uses a public setter and remains mutable after initialization; heed `ENUMCLGEN018` if lookup consistency matters.
 - The package is in preview; generated API shape and defaults may change before a stable release.
 
 Source and issue tracking: [github.com/DDaarcon/EnumClassSourceGenerator](https://github.com/DDaarcon/EnumClassSourceGenerator)

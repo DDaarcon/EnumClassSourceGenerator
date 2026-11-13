@@ -10,7 +10,9 @@ The consumer-facing guide—including installation, examples, generated API, con
 - `EnumClasses.SourceGenerators` contains the incremental source generator.
 - `EnumClasses.SharedSources` contains the public attributes and option types shared by the package and generator.
 - `EnumClassSourceGenerator.UnitTests` and `EnumClassSourceGenerator.UnitTestsLite` exercise runtime and generator behavior.
-- `EnumClasses.CompatibilityTesting.Net8` verifies the minimum supported consumer target.
+- `EnumClasses.CompatibilityTesting.NetStandard2` verifies C# 7 source generation against the `netstandard2.0` API surface.
+- `EnumClasses.CompatibilityTesting.Net462`, `EnumClasses.CompatibilityTesting.Net6`, and `EnumClasses.CompatibilityTesting.Net8` exercise generated code on representative consumer runtimes.
+- `EnumClasses.CompatibilityTesting.NugetPackage` packs the project and verifies the resulting package through a real `PackageReference`.
 - `EnumClassSourceGenerator.Benchmarks` contains lookup benchmarks.
 
 ## Build and test
@@ -23,4 +25,10 @@ dotnet test EnumClassSourceGenerator.slnx
 dotnet pack EnumClasses.Package/EnumClasses.Package.csproj
 ```
 
-The package itself targets .NET 8 and supports C# 12 consumers; see the [package requirements](EnumClasses.Package/README.md#requirements) for details.
+The packed-package compatibility test is not part of the solution. It creates a local package during restore and consumes it through `PackageReference`:
+
+```console
+dotnet test EnumClasses.CompatibilityTesting.NugetPackage/EnumClasses.CompatibilityTesting.NugetPackage.csproj --configuration Release
+```
+
+The package provides `netstandard2.0`, `net8.0`, `net9.0`, and `net10.0` assets. Generated code adapts to the consumer's language and framework capabilities; see the [package requirements](EnumClasses.Package/README.md#requirements) for the supported feature combinations.
