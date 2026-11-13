@@ -1,4 +1,5 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.Diagnostics;
 using EnumClasses.SourceGenerators.Schema.Help;
 using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
@@ -26,6 +27,7 @@ internal static class EnumValueCollector
     /// <param name="ExplicitIndexAttributeLocation">Location of the attribute that provided <paramref name="ExplicitIndex"/>.</param>
     /// <param name="Name">The identifier as written in source.</param>
     /// <param name="NormalizedName">The identifier without contextual escaping, such as a leading <c>@</c>.</param>
+    /// <param name="ExplicitSerializedName">The explicitly configured serialized name, or <see langword="null"/> to use the normalized member name.</param>
     /// <param name="Location">The source location of the declaration.</param>
     /// <param name="FullyQualifiedCustomType">The fully qualified derived type, or <see langword="null"/> for the enum-class type itself.</param>
     /// <param name="HasSharedExplicitIndex">Whether one explicit index is applied to multiple comma-separated values.</param>
@@ -108,17 +110,17 @@ internal static class EnumValueCollector
                 var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name)
                     && !EnumClassDeclarationTemplate.CheckIfNameIsReserved(normalizedName);
                 if (!isNameNotReserved)
-                    reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
+                    reports.Add(EnumClassError.ReservedKeywordUsedForValue(location, name, declarationName));
 
                 var areAccessorsCorrect = IsInitializedGetOnlyAutoProperty(propertySyntax);
                 if (!areAccessorsCorrect)
-                    reports.Add(Diagnostics.InvalidEnumValueAccessors(location, name, declarationName));
+                    reports.Add(EnumClassError.InvalidEnumValueAccessors(location, name, declarationName));
 
                 var isOfMainType = SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol);
 
                 var isOfMainOrDerivedType = isOfMainType || IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel);
                 if (!isOfMainOrDerivedType)
-                    reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                    reports.Add(EnumClassError.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
                 return new CollectedValueData(
                     Name: name,
@@ -206,19 +208,19 @@ internal static class EnumValueCollector
                     var isNameNotReserved = !EnumClassDeclarationTemplate.CheckIfNameIsReserved(name)
                         && !EnumClassDeclarationTemplate.CheckIfNameIsReserved(normalizedName);
                     if (!isNameNotReserved)
-                        reports.Add(Diagnostics.ReservedKeywordUsedForValue(location, name, declarationName));
+                        reports.Add(EnumClassError.ReservedKeywordUsedForValue(location, name, declarationName));
 
                     if (variable.Initializer is null)
-                        reports.Add(Diagnostics.UninitializedEnumValueField(location, name, declarationName));
+                        reports.Add(EnumClassError.UninitializedEnumValueField(location, name, declarationName));
 
                     var isOfMainType = SymbolEqualityComparer.Default.Equals(fieldTypeSymbol, componentTypeSymbol);
 
                     var isOfMainOrDerivedType = isOfMainType || IsAssignable(fieldTypeSymbol, componentTypeSymbol, semanticModel);
                     if (!isOfMainOrDerivedType)
-                        reports.Add(Diagnostics.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                        reports.Add(EnumClassError.InvalidEnumValueType(location, name, declarationName, valueTypeName: fieldTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
 
                     if (hasSharedExplicitIndex && variableIndex == 0)
-                        reports.Add(Diagnostics.ExplicitIndexCannotBeSharedByMultipleFields(valueAttribute!.GetLocation()));
+                        reports.Add(EnumClassError.ExplicitIndexCannotBeSharedByMultipleFields(valueAttribute!.GetLocation()));
 
                     return new CollectedValueData(
                         Name: name,
@@ -335,7 +337,7 @@ internal static class EnumValueCollector
                     .Select(collidingInternalIndex => data[collidingInternalIndex].NormalizedName);
 
                 var reports = valueData.DiagnosticReports?.ToList() ?? [];
-                reports.Add(Diagnostics.CollidingEnumIndexes(
+                reports.Add(EnumClassError.CollidingEnumIndexes(
                     valueData.Location,
                     declarationName,
                     valueData.NormalizedName,
@@ -363,7 +365,7 @@ internal static class EnumValueCollector
             if (valueData.ExplicitIndex.HasValue && !valueData.HasSharedExplicitIndex)
             {
                 var reports = valueData.DiagnosticReports?.ToList() ?? [];
-                reports.Add(Diagnostics.IndexProvidedToTheAttributeWillBeIgnoredForRuntimeIndexes(
+                reports.Add(EnumClassWarning.IndexProvidedToTheAttributeWillBeIgnoredForRuntimeIndexes(
                     valueData.ExplicitIndexAttributeLocation));
                 valueData = valueData with { DiagnosticReports = reports };
             }

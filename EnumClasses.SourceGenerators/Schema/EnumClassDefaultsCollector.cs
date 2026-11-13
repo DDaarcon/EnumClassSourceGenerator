@@ -1,4 +1,5 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.Diagnostics;
 using EnumClasses.SourceGenerators.Schema.Help;
 using Microsoft.CodeAnalysis;
 using System.Linq;
@@ -68,7 +69,7 @@ internal static class EnumClassDefaultsCollector
 
         return
         [
-            Diagnostics.UnsupportedIndexAssignmentMode(
+            EnumClassError.UnsupportedIndexAssignmentMode(
                 attribute.GetNamedArgumentValueLocation(nameof(EnumClassAttribute.IndexAssignmentMode)),
                 invalidValue)
         ];

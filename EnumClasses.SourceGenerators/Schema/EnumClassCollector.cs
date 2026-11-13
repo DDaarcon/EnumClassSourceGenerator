@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using EnumClasses.SourceGenerators.Diagnostics;
 
 namespace EnumClasses.SourceGenerators.Schema;
 
@@ -88,24 +89,24 @@ internal static class EnumClassCollector
 
         bool isNested = component.Parent is TypeDeclarationSyntax;
         if (isNested)
-            reports.Add(Diagnostics.NestedTypeNotSupported(declarationLocation, declarationName));
+            reports.Add(EnumClassError.NestedTypeNotSupported(declarationLocation, declarationName));
 
         bool isGeneric = component.TypeParameterList is { Parameters.Count: > 0 };
         if (isGeneric)
-            reports.Add(Diagnostics.GenericTypeNotSupported(declarationLocation, declarationName));
+            reports.Add(EnumClassError.GenericTypeNotSupported(declarationLocation, declarationName));
 
         bool isNamespaceMissing = namespaceName is null;
         if (isNamespaceMissing)
-            reports.Add(Diagnostics.NamespaceNotFound(declarationLocation, declarationName));
+            reports.Add(EnumClassError.NamespaceNotFound(declarationLocation, declarationName));
 
         bool areAccessorsMissing = !accessModifiers.Any();
         if (areAccessorsMissing)
-            reports.Add(Diagnostics.InvalidModifiers(declarationLocation, declarationName));
+            reports.Add(EnumClassError.InvalidModifiers(declarationLocation, declarationName));
 
         bool areInvalidConstructorsDefined = invalidConstructors.Any();
         if (areInvalidConstructorsDefined)
             reports.AddRange(invalidConstructors
-                .Select(constructor => Diagnostics.NonPrivateConstructorOnRestrictedEnumClass(
+                .Select(constructor => EnumClassError.NonPrivateConstructorOnRestrictedEnumClass(
                     constructor.Locations.FirstOrDefault() ?? declarationLocation,
                     declarationName)));
 
@@ -150,7 +151,7 @@ internal static class EnumClassCollector
 
         if (declarationsWithValues.Length > 1)
         {
-            reports.Add(Diagnostics.ValuesDeclaredInMultiplePartialDeclarations(declarationLocation, declarationName));
+            reports.Add(EnumClassError.ValuesDeclaredInMultiplePartialDeclarations(declarationLocation, declarationName));
 
             return new(
                 new Definition(
@@ -206,7 +207,7 @@ internal static class EnumClassCollector
         var definition = collectedDefinition.Definition;
         Diagnostic[] configurationDiagnostics = configuration is
             { IndexAssignmentMode.IsRuntime: true, GenerateRawEnum: true }
-                ? [Diagnostics.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation)]
+                ? [EnumClassWarning.RuntimeIndexesMayDifferFromRawEnumValues(definition.AttributeLocation)]
                 : [];
 
         if (definition.Status is Definition.StatusCode.InvalidClassDeclaration)
@@ -288,7 +289,7 @@ internal static class EnumClassCollector
             return null;
         }
 
-        return Diagnostics.UnsupportedIndexAssignmentMode(
+        return EnumClassError.UnsupportedIndexAssignmentMode(
             attribute.GetNamedArgumentValueLocation(nameof(EnumClassAttribute.IndexAssignmentMode)),
             invalidValue);
     }

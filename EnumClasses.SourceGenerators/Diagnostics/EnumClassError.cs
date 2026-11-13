@@ -1,8 +1,8 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace EnumClasses.SourceGenerators;
+namespace EnumClasses.SourceGenerators.Diagnostics;
 
-internal static class Diagnostics
+internal static class EnumClassError
 {
     public static Diagnostic InvalidEnumValueType(Location? valueLocation, string valueName, string declarationaName, string valueTypeName)
         => Diagnostic.Create(InvalidEnumValueTypeDescriptor, valueLocation, valueName, declarationaName, valueTypeName);
@@ -11,7 +11,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN001",
             title: "Invalid type of a Enum Class Value field/property",
             messageFormat: "Type '{2}' of '{0}' is not assignable to '{1}'",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -23,7 +23,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN002",
             title: "Invalid accessors for a Enum Class Value property",
             messageFormat: "'{0}' on '{1}' has invalid property accessors, it has to have a getter and must not have an 'init' nor 'set' setter",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -35,7 +35,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN003",
             title: "Enum Class has to be defined in a namespace",
             messageFormat: "Enum Class '{0}' is not defined in a namespace",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -47,7 +47,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN004",
             title: "Enum Class has to be either public, internal, protected or private",
             messageFormat: "Enum Class '{0}' has invalid access modifiers",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -59,7 +59,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN005",
             title: "Unhandled exception",
             messageFormat: "Unhandled exception when generating Enum Class '{1}': {0}",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -71,7 +71,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN006",
             title: "Nested Enum Classes are not supported",
             messageFormat: "Enum Class '{0}' is nested inside another type. Move it to namespace scope.",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -83,7 +83,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN007",
             title: "Generic Enum Classes are not supported",
             messageFormat: "Enum Class '{0}' has type parameters. Generic enum classes are not currently supported.",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -95,7 +95,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN008",
             title: "The name of an Enum Class value collides with generated code",
             messageFormat: "The name '{0}' on Enum Class '{1}' collides with generated code and can not be used for a value name",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -107,7 +107,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN009",
             title: "Restricted Enum Class constructors must be private",
             messageFormat: "Constructor on Enum Class '{0}' must be private when ConstructionRestrictionMode is not Off",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -119,7 +119,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN010",
             title: "Enum Class value fields must be initialized",
             messageFormat: "Enum Class value field '{0}' on '{1}' must have an initializer",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -130,7 +130,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN011",
             title: "Enum Class values must be declared in one partial declaration",
             messageFormat: "Enum Class '{0}' declares values in multiple partial declarations; move all values into a single declaration",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
@@ -141,20 +141,8 @@ internal static class Diagnostics
             id: "ENUMCLGEN012",
             title: "Enum Class values' indexes must be unique",
             messageFormat: "Enum Class '{0}' value '{1}' has the same index as '{2}'",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-    // TODO separate errors from warnings
-    public static Diagnostic IndexProvidedToTheAttributeWillBeIgnoredForRuntimeIndexes(Location? attributeLocation)
-        => Diagnostic.Create(IndexProvidedToTheAttributeWillBeIgnoredForRuntimeIndexesDescriptor, attributeLocation);
-    public static readonly DiagnosticDescriptor IndexProvidedToTheAttributeWillBeIgnoredForRuntimeIndexesDescriptor =
-        new(
-            id: "ENUMCLGEN013",
-            title: "Redundant index specification",
-            messageFormat: "Index specified in EnumClassValueAttribute is ignored when IndexAssignmentMode uses runtime assignment",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
     public static Diagnostic ExplicitIndexCannotBeSharedByMultipleFields(Location? attributeLocation)
@@ -164,19 +152,8 @@ internal static class Diagnostics
             id: "ENUMCLGEN014",
             title: "An explicit Enum Class index applies to exactly one value",
             messageFormat: "EnumClassValueAttribute with an index cannot be applied to a field declaration containing multiple values; split the values into separate declarations",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-    public static Diagnostic RuntimeIndexesMayDifferFromRawEnumValues(Location? attributeLocation)
-        => Diagnostic.Create(RuntimeIndexesMayDifferFromRawEnumValuesDescriptor, attributeLocation);
-    public static readonly DiagnosticDescriptor RuntimeIndexesMayDifferFromRawEnumValuesDescriptor =
-        new(
-            id: "ENUMCLGEN015",
-            title: "Runtime indexes may differ from generated Raw enum values",
-            messageFormat: "Runtime EnumIndex values may not match the numeric values of the generated Raw enum, whose values follow declaration order",
-            category: Category,
-            defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
 
     public static Diagnostic UnsupportedIndexAssignmentMode(Location? valueLocation, int value)
@@ -186,9 +163,7 @@ internal static class Diagnostics
             id: "ENUMCLGEN016",
             title: "Unsupported index assignment mode",
             messageFormat: "IndexAssignmentMode value '{0}' is not supported; use CompileTime, RuntimeAtValueInit, or RuntimeAtValueCreation",
-            category: Category,
+            category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
-
-    public const string Category = "EnumClassGenerator";
 }

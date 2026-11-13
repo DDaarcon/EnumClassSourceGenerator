@@ -1,4 +1,5 @@
 ﻿using EnumClasses.SourceGenerators.Configurations;
+using EnumClasses.SourceGenerators.Diagnostics;
 using EnumClasses.SourceGenerators.Schema;
 using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
@@ -12,11 +13,6 @@ using System.Threading;
 
 namespace EnumClasses.SourceGenerators
 {
-    /*
-     * TODO: 
-     * For Numbered Enum Class verify whether assigned EnumIndex values are free - upgrade to compile-time validation
-     * 
-     */
     /// <summary>
     /// Generates enum-class members for classes marked with <c>EnumClass</c> attributes.
     /// </summary>
@@ -106,7 +102,7 @@ namespace EnumClasses.SourceGenerators
             }
             catch (Exception ex)
             {
-                context.ReportDiagnostic(Diagnostics.UnexpectedException(props.Definition.Location, ex.Message, props.Definition.DeclarationName ?? "N/A"));
+                context.ReportDiagnostic(EnumClassError.UnexpectedException(props.Definition.Location, ex.Message, props.Definition.DeclarationName ?? "N/A"));
             }
         }
 
