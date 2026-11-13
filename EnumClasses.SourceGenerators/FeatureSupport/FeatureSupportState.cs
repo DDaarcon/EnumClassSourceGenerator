@@ -7,6 +7,7 @@ internal record struct FeatureSupportState(
     Status Utf8StringLiteral,
     Status NullableReferenceTypes,
     Status UnconstrainedTypeParameterNullableAnnotation,
+    Status SwitchExpression,
     Status NotPattern,
     Status RequiredKeyword,
     Status InitKeyword)

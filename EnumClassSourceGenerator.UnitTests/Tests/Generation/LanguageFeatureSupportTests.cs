@@ -93,6 +93,36 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_SwitchExpressionIsUnsupported_Then_ShouldUseSwitchStatements()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp7,
+            generateRawEnum: true,
+            useRuntimeIndexes: false);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("switch (index)");
+        generatedSource.Should().Contain("case 0: return One;");
+        generatedSource.Should().Contain("switch (value)");
+        generatedSource.Should().Contain("case Raw.One:");
+        generatedSource.Should().NotContain("return index switch");
+        generatedSource.Should().NotContain("result = value switch");
+    }
+
+    [Fact]
+    public void When_SwitchExpressionIsSupported_Then_ShouldUseSwitchExpressions()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp8,
+            generateRawEnum: true,
+            useRuntimeIndexes: false);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("return index switch");
+        generatedSource.Should().Contain("result = value switch");
+    }
+
+    [Fact]
     public void When_InitKeywordIsUnsupported_Then_ShouldUseSetAndReportWarningOnEnumClassAttribute()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp8);
@@ -164,7 +194,8 @@ public class LanguageFeatureSupportTests
     private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(
         LanguageVersion languageVersion,
         bool generateJsonConverter = false,
-        bool generateRawEnum = false)
+        bool generateRawEnum = false,
+        bool useRuntimeIndexes = true)
     {
         var source = """
             using EnumClasses;
@@ -174,11 +205,11 @@ public class LanguageFeatureSupportTests
                 [EnumClass(
                     GenerateJsonConverter = GENERATE_JSON_CONVERTER,
                     GenerateRawEnum = GENERATE_RAW_ENUM,
-                    IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
+                    IndexAssignmentMode = INDEX_ASSIGNMENT_MODE)]
                 internal partial class RuntimeIndexedEnum
                 {
                     public static SpecializedRuntimeIndexedEnum One { get; }
-                        = new SpecializedRuntimeIndexedEnum() { EnumIndex = 1 };
+                        = new SpecializedRuntimeIndexedEnum() ENUM_INDEX_ASSIGNMENT;
                 }
 
                 internal sealed class SpecializedRuntimeIndexedEnum : RuntimeIndexedEnum { }
@@ -188,7 +219,15 @@ public class LanguageFeatureSupportTests
                 generateJsonConverter ? "true" : "false")
             .Replace(
                 "GENERATE_RAW_ENUM",
-                generateRawEnum ? "true" : "false");
+                generateRawEnum ? "true" : "false")
+            .Replace(
+                "INDEX_ASSIGNMENT_MODE",
+                useRuntimeIndexes
+                    ? "IndexAssignmentMode.RuntimeAtValueInit"
+                    : "IndexAssignmentMode.CompileTime")
+            .Replace(
+                "ENUM_INDEX_ASSIGNMENT",
+                useRuntimeIndexes ? "{ EnumIndex = 1 }" : "");
 
         var parseOptions = new CSharpParseOptions(languageVersion);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);

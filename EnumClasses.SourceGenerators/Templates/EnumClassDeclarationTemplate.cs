@@ -351,12 +351,23 @@ internal class EnumClassDeclarationTemplate
                             """;
                     }
 
+                    if (ctx.FeatureSupport.SwitchExpression.IsSupported)
+                    {
+                        return $$"""
+                            return index switch
+                            {
+                                {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"{enumValue.ResolvedIndex} => {enumValue.Name},")}}
+                                _ => null
+                            };
+                            """;
+                    }
+
                     return $$"""
-                        return index switch
+                        switch (index)
                         {
-                            {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"{enumValue.ResolvedIndex} => {enumValue.Name},")}}
-                            _ => null
-                        };
+                            {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"case {enumValue.ResolvedIndex}: return {enumValue.Name};")}}
+                            default: return null;
+                        }
                         """;
                 }
             }
@@ -403,11 +414,7 @@ internal class EnumClassDeclarationTemplate
                 /// <returns><see langword="true"/> when <paramref name="value"/> is defined; otherwise, <see langword="false"/>.</returns>
                 public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
-                    result = value switch
-                    {
-                        {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"Raw.{enumValue.Name} => {enumValue.Name},")}}
-                        _ => null
-                    };
+                    {{BuildRawValueAssignment(ctx)}}
 
                     return {{ctx.GetIsNotNullExpression("result")}};
                 }
@@ -480,6 +487,34 @@ internal class EnumClassDeclarationTemplate
                 return ctx.GetJoinEnumValues(
                     Consts.CommaNl,
                     static enumValue => $"{enumValue.Name} = {enumValue.ResolvedIndex}");
+            }
+
+            static string BuildRawValueAssignment(Context ctx)
+            {
+                if (ctx.FeatureSupport.SwitchExpression.IsSupported)
+                {
+                    return $$"""
+                        result = value switch
+                        {
+                            {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"Raw.{enumValue.Name} => {enumValue.Name},")}}
+                            _ => null
+                        };
+                        """;
+                }
+
+                return $$"""
+                    switch (value)
+                    {
+                        {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $$"""
+                            case Raw.{{enumValue.Name}}:
+                                result = {{enumValue.Name}};
+                                break;
+                            """)}}
+                        default:
+                            result = null;
+                            break;
+                    }
+                    """;
             }
         }
 

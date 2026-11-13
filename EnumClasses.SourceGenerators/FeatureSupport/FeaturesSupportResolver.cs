@@ -1,9 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using SupportStatus = EnumClasses.SourceGenerators.FeatureSupport.FeatureSupportState.Status;
 
 
@@ -21,6 +18,7 @@ internal static class FeaturesSupportResolver
             NullableReferenceTypes: GetNullableReferenceTypesSupport(parseOptions),
             UnconstrainedTypeParameterNullableAnnotation:
                 GetUnconstrainedTypeParameterNullableAnnotationSupport(parseOptions),
+            SwitchExpression: GetSwitchExpressionSupport(parseOptions),
             NotPattern: GetNotPatternSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
@@ -63,43 +61,27 @@ internal static class FeaturesSupportResolver
 
     private static SupportStatus GetUtf8StringLiteralSupport(
         CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp11)
-            return SupportStatus.Supported;
-        return SupportStatus.Unsupported;
-    }
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp11);
 
     private static SupportStatus GetNullableReferenceTypesSupport(
         CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp8)
-            return SupportStatus.Supported;
-        return SupportStatus.Unsupported;
-    }
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp8);
 
     private static SupportStatus GetUnconstrainedTypeParameterNullableAnnotationSupport(
         CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp9)
-            return SupportStatus.Supported;
-        return SupportStatus.Unsupported;
-    }
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp9);
+
+    private static SupportStatus GetSwitchExpressionSupport(
+        CSharpParseOptions parseOptions)
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp8);
 
     private static SupportStatus GetNotPatternSupport(
         CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp9)
-            return SupportStatus.Supported;
-        return SupportStatus.Unsupported;
-    }
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp9);
 
     private static SupportStatus GetRequiredKeywordSupport(
         CSharpParseOptions parseOptions)
-    {
-        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp11)
-            return SupportStatus.Supported;
-        return SupportStatus.Unsupported;
-    }
+        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp11);
 
     private static SupportStatus GetInitKeywordSupport(
         Compilation compilation,

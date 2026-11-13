@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis.CSharp;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -20,5 +21,13 @@ internal static class FeatureSupportStateExtensions
 
             return status.IsSupported ? $"{typeName}?" : typeName;
         }
+    }
+
+    extension(CSharpParseOptions options)
+    {
+        public FeatureSupportState.Status SupportedIfAtLeast(LanguageVersion version)
+            => options.LanguageVersion >= version
+                ? FeatureSupportState.Status.Supported
+                : FeatureSupportState.Status.Unsupported;
     }
 }
