@@ -12,5 +12,13 @@ internal static class FeatureSupportStateExtensions
 
         public string? IfSupportedOrNull(string value)
             => status.IsSupported ? value : null;
+
+        public string GetNullableReferenceType(string? typeName)
+        {
+            if (typeName is null)
+                throw new ArgumentNullException(nameof(typeName));
+
+            return status.IsSupported ? $"{typeName}?" : typeName;
+        }
     }
 }

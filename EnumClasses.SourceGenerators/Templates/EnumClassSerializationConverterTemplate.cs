@@ -17,7 +17,7 @@ internal class EnumClassSerializationConverterTemplate
             .ToArray();
 
         return $$"""
-            {{definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable enable")}}
+            {{definition.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable enable")}}
             
             namespace {{definition.NamespaceName}}
             {
@@ -26,7 +26,7 @@ internal class EnumClassSerializationConverterTemplate
 
                     internal class JsonConverter : System.Text.Json.Serialization.JsonConverter<{{definition.DeclarationName}}>
                     {
-                        public override {{definition.DeclarationName}}? Read(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+                        public override {{definition.FeatureSupport.NullableReferenceTypes.GetNullableReferenceType(definition.DeclarationName)}} Read(ref System.Text.Json.Utf8JsonReader reader, System.Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
                         {
                             {{BuildReadingLogic(enumValues, props)}}
                         }
@@ -41,7 +41,7 @@ internal class EnumClassSerializationConverterTemplate
                 }
             }
             
-            {{definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable disable")}}
+            {{definition.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable disable")}}
             """;
 
         static string BuildReadingLogic(EnumValueDefinition[] enumValues, EnumClassProps props)
@@ -126,7 +126,7 @@ internal class EnumClassSerializationConverterTemplate
                     {
                         global::System.ReadOnlySpan<byte> utf8 = reader.ValueSpan;
 
-                        if ({{EnumClassDeclarationTemplate.ValuesBySerializedUtf8NameSpanLookupVariableName}}.TryGetValue(utf8, out {{props.Definition.DeclarationName}}? value))
+                        if ({{EnumClassDeclarationTemplate.ValuesBySerializedUtf8NameSpanLookupVariableName}}.TryGetValue(utf8, out {{props.Definition.FeatureSupport.NullableReferenceTypes.GetNullableReferenceType(props.Definition.DeclarationName)}} value))
                             return value;
 
                         throw new global::System.Text.Json.JsonException(
@@ -174,7 +174,7 @@ internal class EnumClassSerializationConverterTemplate
                     {
                         if ({{EnumClassDeclarationTemplate.ValuesBySerializedUtf8NameSpanLookupVariableName}}.TryGetValue(
                             utf8,
-                            out {{props.Definition.DeclarationName}}? value))
+                            out {{props.Definition.FeatureSupport.NullableReferenceTypes.GetNullableReferenceType(props.Definition.DeclarationName)}} value))
                         {
                             return value;
                         }

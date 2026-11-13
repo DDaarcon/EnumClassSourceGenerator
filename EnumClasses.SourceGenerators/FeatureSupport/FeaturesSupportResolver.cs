@@ -18,7 +18,9 @@ internal static class FeaturesSupportResolver
         return new FeatureSupportState(
             AlternateLookup: GetAlternateLookupSupport(compilation, parseOptions),
             Utf8StringLiteral: GetUtf8StringLiteralSupport(parseOptions),
-            NullableDirective: GetNullableDirectiveSupport(parseOptions),
+            NullableReferenceTypes: GetNullableReferenceTypesSupport(parseOptions),
+            UnconstrainedTypeParameterNullableAnnotation:
+                GetUnconstrainedTypeParameterNullableAnnotationSupport(parseOptions),
             NotPattern: GetNotPatternSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
@@ -67,10 +69,18 @@ internal static class FeaturesSupportResolver
         return SupportStatus.Unsupported;
     }
 
-    private static SupportStatus GetNullableDirectiveSupport(
+    private static SupportStatus GetNullableReferenceTypesSupport(
         CSharpParseOptions parseOptions)
     {
         if (parseOptions.LanguageVersion >= LanguageVersion.CSharp8)
+            return SupportStatus.Supported;
+        return SupportStatus.Unsupported;
+    }
+
+    private static SupportStatus GetUnconstrainedTypeParameterNullableAnnotationSupport(
+        CSharpParseOptions parseOptions)
+    {
+        if (parseOptions.LanguageVersion >= LanguageVersion.CSharp9)
             return SupportStatus.Supported;
         return SupportStatus.Unsupported;
     }

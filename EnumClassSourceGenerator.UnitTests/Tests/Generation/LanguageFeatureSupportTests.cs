@@ -49,6 +49,50 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_NullableReferenceAnnotationsAreUnsupported_Then_ShouldExcludeThem()
+    {
+        var (result, _) = RunGenerator(
+            LanguageVersion.CSharp7,
+            generateJsonConverter: true,
+            generateRawEnum: true);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().NotContain("RuntimeIndexedEnum?");
+        generatedSource.Should().NotContain("string?");
+        generatedSource.Should().NotContain("object?");
+        generatedSource.Should().NotContain("System.Action?");
+        generatedSource.Should().NotContain("System.Func<TResult>?");
+        generatedSource.Should().NotContain("TResult?");
+        generatedSource.Should().NotContain("TValue?");
+        generatedSource.Should().NotContain("null!");
+        generatedSource.Should().Contain("private Raw? _rawValue;");
+
+        GetGeneratedJsonConverterSource(result).Should().NotContain("RuntimeIndexedEnum?");
+    }
+
+    [Fact]
+    public void When_NullableReferenceAnnotationsAreSupported_Then_ShouldIncludeThem()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp8);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain("RuntimeIndexedEnum?");
+        generatedSource.Should().Contain("string?");
+        generatedSource.Should().Contain("object?");
+        generatedSource.Should().Contain("System.Action?");
+        generatedSource.Should().Contain("TValue?");
+        generatedSource.Should().NotContain("public TResult? Match<TResult>(");
+    }
+
+    [Fact]
+    public void When_UnconstrainedNullableTypeParameterAnnotationIsSupported_Then_ShouldIncludeIt()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp9);
+
+        GetGeneratedSource(result).Should().Contain("public TResult? Match<TResult>(");
+    }
+
+    [Fact]
     public void When_InitKeywordIsUnsupported_Then_ShouldUseSetAndReportWarningOnEnumClassAttribute()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp8);
@@ -119,7 +163,8 @@ public class LanguageFeatureSupportTests
 
     private static (GeneratorRunResult Result, Compilation OutputCompilation) RunGenerator(
         LanguageVersion languageVersion,
-        bool generateJsonConverter = false)
+        bool generateJsonConverter = false,
+        bool generateRawEnum = false)
     {
         var source = """
             using EnumClasses;
@@ -128,15 +173,22 @@ public class LanguageFeatureSupportTests
             {
                 [EnumClass(
                     GenerateJsonConverter = GENERATE_JSON_CONVERTER,
+                    GenerateRawEnum = GENERATE_RAW_ENUM,
                     IndexAssignmentMode = IndexAssignmentMode.RuntimeAtValueInit)]
                 internal partial class RuntimeIndexedEnum
                 {
-                    public static RuntimeIndexedEnum One { get; } = new RuntimeIndexedEnum() { EnumIndex = 1 };
+                    public static SpecializedRuntimeIndexedEnum One { get; }
+                        = new SpecializedRuntimeIndexedEnum() { EnumIndex = 1 };
                 }
+
+                internal sealed class SpecializedRuntimeIndexedEnum : RuntimeIndexedEnum { }
             }
             """.Replace(
                 "GENERATE_JSON_CONVERTER",
-                generateJsonConverter ? "true" : "false");
+                generateJsonConverter ? "true" : "false")
+            .Replace(
+                "GENERATE_RAW_ENUM",
+                generateRawEnum ? "true" : "false");
 
         var parseOptions = new CSharpParseOptions(languageVersion);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);

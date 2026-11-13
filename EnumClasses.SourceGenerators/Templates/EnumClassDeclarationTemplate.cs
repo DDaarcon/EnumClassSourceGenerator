@@ -67,7 +67,7 @@ internal class EnumClassDeclarationTemplate
         var ctx = Context.Parse(props);
 
         return $$"""
-            {{ctx.Definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable enable")}}
+            {{ctx.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable enable")}}
             namespace {{ctx.Definition.NamespaceName}}
             {
 
@@ -115,7 +115,7 @@ internal class EnumClassDeclarationTemplate
                     /// </summary>
                     /// <param name="other">The value to compare with this instance.</param>
                     /// <returns><see langword="true"/> when both references identify the same object; otherwise, <see langword="false"/>.</returns>
-                    public bool Equals({{ctx.Definition.DeclarationName}}? other)
+                    public bool Equals({{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} other)
                     {
                         if (other is null)
                             return false;
@@ -124,7 +124,7 @@ internal class EnumClassDeclarationTemplate
                     }
                             
                     /// <inheritdoc/>
-                    public override bool Equals(object? obj)
+                    public override bool Equals({{ctx.GetNullableReferenceType("object")}} obj)
                     {
                         return Equals(obj as {{ctx.Definition.DeclarationName}});
                     }
@@ -136,7 +136,7 @@ internal class EnumClassDeclarationTemplate
 
                 }
             }
-            {{ctx.Definition.FeatureSupport.NullableDirective.IfSupportedOrNull("#nullable disable")}}
+            {{ctx.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable disable")}}
             """;
 
         static string BuildConstructor(Context ctx)
@@ -259,7 +259,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="index">The enum index to find.</param>
                 /// <param name="result">The matching declared value, or <see langword="null"/> when no value has the index.</param>
                 /// <returns><see langword="true"/> when a declared value has the specified index; otherwise, <see langword="false"/>.</returns>
-                public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
+                public static bool TryGetByEnumIndex(int index, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = GetByEnumIndex(index);
                     return {{ctx.GetIsNotNullExpression("result")}};
@@ -326,7 +326,7 @@ internal class EnumClassDeclarationTemplate
                     /// </summary>
                     /// <param name="index">The enum index to find.</param>
                     /// <returns>The matching declared value, or <see langword="null"/> when no value has the index.</returns>
-                    public static {{ctx.Definition.DeclarationName}}? GetByEnumIndex(int index)
+                    public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} GetByEnumIndex(int index)
                     {
                         {{BuildBody(ctx)}}
                     }
@@ -339,7 +339,7 @@ internal class EnumClassDeclarationTemplate
                         if (GetLookupImplementationForIntKeys(ctx) is LookupImplementation.Dictionary)
                         {
                             return $$"""
-                                return (_valuesByEnumIndex?.TryGetValue(index, out {{ctx.Definition.DeclarationName}}? value) ?? false)
+                                return (_valuesByEnumIndex?.TryGetValue(index, out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} value) ?? false)
                                     ? value
                                     : null;
                                 """;
@@ -401,7 +401,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="value">The raw value to convert.</param>
                 /// <param name="result">The corresponding declared value, or <see langword="null"/> when the raw value is not defined.</param>
                 /// <returns><see langword="true"/> when <paramref name="value"/> is defined; otherwise, <see langword="false"/>.</returns>
-                public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
+                public static bool TryFromRaw(Raw value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = value switch
                     {
@@ -446,7 +446,7 @@ internal class EnumClassDeclarationTemplate
                 /// <see langword="true"/> when <paramref name="value"/> is a declared enum-class value;
                 /// otherwise, <see langword="false"/>.
                 /// </returns>
-                public static bool TryToRaw({{ctx.Definition.DeclarationName}}? value, out Raw result)
+                public static bool TryToRaw({{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} value, out Raw result)
                 {
                     if (value?._rawValue is Raw rawValue)
                     {
@@ -514,7 +514,10 @@ internal class EnumClassDeclarationTemplate
                 /// </remarks>
                 {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue => $"/// <param name=\"on{enumValue.NormalizedName}\">The optional callback for <c>{enumValue.NormalizedName}</c>.</param>")}}
                 public void Switch(
-                    {{ctx.GetJoinEnumValues(Consts.CommaNl, static enumValue => $"System.Action? on{enumValue.NormalizedName} = null")}})
+                    {{ctx.GetJoinEnumValues(
+                        Consts.CommaNl,
+                        ctx.GetNullableReferenceType("System.Action"),
+                        static (enumValue, actionType) => $"{actionType} on{enumValue.NormalizedName} = null")}})
                 {
                     switch (_internalIndex)
                     {
@@ -561,7 +564,10 @@ internal class EnumClassDeclarationTemplate
                 /// </remarks>
                 public void Switch<TState>(
                     TState state,
-                    {{ctx.GetJoinEnumValues(Consts.CommaNl, static enumValue => $"System.Action<TState>? on{enumValue.NormalizedName} = null")}})
+                    {{ctx.GetJoinEnumValues(
+                        Consts.CommaNl,
+                        ctx.GetNullableReferenceType("System.Action<TState>"),
+                        static (enumValue, actionType) => $"{actionType} on{enumValue.NormalizedName} = null")}})
                 {
                     switch (_internalIndex)
                     {
@@ -607,8 +613,11 @@ internal class EnumClassDeclarationTemplate
                 /// The result of the selected callback, or <see langword="default"/> when the matching callback is
                 /// <see langword="null"/> or this instance is not a declared value.
                 /// </returns>
-                public TResult? Match<TResult>(
-                    {{ctx.GetJoinEnumValues(Consts.CommaNl, static enumValue => $"System.Func<TResult>? on{enumValue.NormalizedName} = null")}})
+                public {{ctx.GetNullableUnconstrainedTypeParameter("TResult")}} Match<TResult>(
+                    {{ctx.GetJoinEnumValues(
+                        Consts.CommaNl,
+                        ctx.GetNullableReferenceType("System.Func<TResult>"),
+                        static (enumValue, functionType) => $"{functionType} on{enumValue.NormalizedName} = null")}})
                 {
                     switch (_internalIndex)
                     {
@@ -658,9 +667,12 @@ internal class EnumClassDeclarationTemplate
                 /// The result of the selected callback, or <see langword="default"/> when the matching callback is
                 /// <see langword="null"/> or this instance is not a declared value.
                 /// </returns>
-                public TResult? Match<TResult, TState>(
+                public {{ctx.GetNullableUnconstrainedTypeParameter("TResult")}} Match<TResult, TState>(
                     TState state,
-                    {{ctx.GetJoinEnumValues(Consts.CommaNl, static enumValue => $"System.Func<TState, TResult>? on{enumValue.NormalizedName} = null")}})
+                    {{ctx.GetJoinEnumValues(
+                        Consts.CommaNl,
+                        ctx.GetNullableReferenceType("System.Func<TState, TResult>"),
+                        static (enumValue, functionType) => $"{functionType} on{enumValue.NormalizedName} = null")}})
                 {
                     switch (_internalIndex)
                     {
@@ -687,7 +699,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="value">The declared value to inspect.</param>
                 /// <param name="typeMatchingValue">The value cast to <typeparamref name="TValue"/>, or <see langword="null"/> when it does not match.</param>
                 /// <returns><see langword="true"/> when <paramref name="value"/> is declared as <typeparamref name="TValue"/>; otherwise, <see langword="false"/>.</returns>
-                public static bool TryGetOfType<TValue>({{ctx.Definition.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out TValue? typeMatchingValue)
+                public static bool TryGetOfType<TValue>({{ctx.Definition.DeclarationName}} value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType("TValue")}} typeMatchingValue)
                     where TValue : {{ctx.Definition.DeclarationName}}
                 {
                     var checkedType = typeof(TValue);
@@ -719,7 +731,7 @@ internal class EnumClassDeclarationTemplate
             if (GetLookupImplementationForIntKeys(ctx) is LookupImplementation.Dictionary)
             {
                 return $$"""
-                    private static System.Collections.Frozen.FrozenDictionary<int, {{ctx.Definition.DeclarationName}}>? _valuesByEnumIndex;
+                    private static {{ctx.GetNullableReferenceType($"System.Collections.Frozen.FrozenDictionary<int, {ctx.Definition.DeclarationName}>")}} _valuesByEnumIndex;
 
                     private static System.Collections.Frozen.FrozenDictionary<int, {{ctx.Definition.DeclarationName}}> CreateRuntimeIndexDictionary()
                     {
@@ -771,7 +783,7 @@ internal class EnumClassDeclarationTemplate
         static string BuildSerialization(Context ctx)
         {
             return $$"""
-                private string _serializedName = null!;
+                private string _serializedName = null{{ctx.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("!")}};
 
                 {{BuildDictionaryDeclaration(ctx)}}
 
@@ -803,7 +815,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool TryDeserialize(string? serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
+                public static bool TryDeserialize({{ctx.GetNullableReferenceType("string")}} serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = Deserialize(serializedValue);
                     return {{ctx.GetIsNotNullExpression("result")}};
@@ -815,7 +827,7 @@ internal class EnumClassDeclarationTemplate
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.Definition.DeclarationName}}? result)
+                public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
                 {
                     result = Deserialize(serializedValue);
                     return {{ctx.GetIsNotNullExpression("result")}};
@@ -826,7 +838,7 @@ internal class EnumClassDeclarationTemplate
                 /// </summary>
                 /// <param name="serializedValue">The source member name to find.</param>
                 /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool ContainsSerializedValue(string? serializedValue)
+                public static bool ContainsSerializedValue({{ctx.GetNullableReferenceType("string")}} serializedValue)
                     => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
                 
                 /// <summary>
@@ -844,7 +856,7 @@ internal class EnumClassDeclarationTemplate
                     return "";
 
                 var dictAssignment = $"""
-                    private static System.Collections.Frozen.FrozenDictionary<string, {ctx.Definition.DeclarationName}>? _valuesBySerializedName;
+                    private static {ctx.GetNullableReferenceType($"System.Collections.Frozen.FrozenDictionary<string, {ctx.Definition.DeclarationName}>")} _valuesBySerializedName;
                     """;
 
                 if (ctx.FeatureSupport.AlternateLookup.IsSupported)
@@ -873,12 +885,12 @@ internal class EnumClassDeclarationTemplate
                         /// </summary>
                         /// <param name="serializedValue">The source member name to find.</param>
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.Definition.DeclarationName}}? Deserialize(string? serializedValue)
+                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize({{ctx.GetNullableReferenceType("string")}} serializedValue)
                         {
                             if (serializedValue is null)
                                 return null;
 
-                            return (_valuesBySerializedName?.TryGetValue(serializedValue, out {{ctx.Definition.DeclarationName}}? value) ?? false)
+                            return (_valuesBySerializedName?.TryGetValue(serializedValue, out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} value) ?? false)
                                 ? value
                                 : null;
                         }
@@ -888,7 +900,7 @@ internal class EnumClassDeclarationTemplate
                         /// </summary>
                         /// <param name="serializedValue">The source member name to find.</param>
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
+                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
                             {{BuildSpanDeserializationBody(ctx)}}
                         }
@@ -899,7 +911,7 @@ internal class EnumClassDeclarationTemplate
                         if (ctx.FeatureSupport.AlternateLookup.IsSupported)
                         {
                             return $$"""
-                                return _valuesBySerializedNameSpanLookup.TryGetValue(serializedValue, out {{ctx.Definition.DeclarationName}}? value)
+                                return _valuesBySerializedNameSpanLookup.TryGetValue(serializedValue, out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} value)
                                     ? value
                                     : null;
                                 """;
@@ -918,7 +930,7 @@ internal class EnumClassDeclarationTemplate
                         /// </summary>
                         /// <param name="serializedValue">The source member name to find.</param>
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.Definition.DeclarationName}}? Deserialize(string? serializedValue)
+                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize({{ctx.GetNullableReferenceType("string")}} serializedValue)
                         {
                             if (serializedValue is null)
                                 return null;
@@ -931,7 +943,7 @@ internal class EnumClassDeclarationTemplate
                         /// </summary>
                         /// <param name="serializedValue">The source member name to find.</param>
                         /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.Definition.DeclarationName}}? Deserialize(System.ReadOnlySpan<char> serializedValue)
+                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
                         {
                             {{BuildIfChainSpanDeserializationBody(ctx)}}
                         }
@@ -961,7 +973,7 @@ internal class EnumClassDeclarationTemplate
                 return "";
 
             return $$"""
-                private static System.Collections.Frozen.FrozenDictionary<System.ReadOnlyMemory<byte>, {{ctx.Definition.DeclarationName}}>? _valuesBySerializedUtf8Name;
+                private static {{ctx.GetNullableReferenceType($"System.Collections.Frozen.FrozenDictionary<System.ReadOnlyMemory<byte>, {ctx.Definition.DeclarationName}>")}} _valuesBySerializedUtf8Name;
                 private static System.Collections.Frozen.FrozenDictionary<System.ReadOnlyMemory<byte>, {{ctx.Definition.DeclarationName}}>.AlternateLookup<System.ReadOnlySpan<byte>> {{ValuesBySerializedUtf8NameSpanLookupVariableName}};
 
 
@@ -1097,10 +1109,29 @@ internal class EnumClassDeclarationTemplate
             Func<EnumValueDefinition, string> selector)
             => string.Join(separator, EnumValues.Select(selector));
 
+        public string GetJoinEnumValues<TState>(
+            string separator,
+            TState state,
+            Func<EnumValueDefinition, TState, string> selector)
+        {
+            var transformedValues = new string[EnumValues.Length];
+            for (var i = 0; i < EnumValues.Length; i++)
+                transformedValues[i] = selector(EnumValues[i], state);
+
+            return string.Join(separator, transformedValues);
+        }
+
         public string GetIsNotNullExpression(string expression)
             => FeatureSupport.NotPattern.IsSupported
                 ? $"{expression} is not null"
                 : $"{expression} != null";
+
+        public string GetNullableReferenceType(string? typeName)
+            => FeatureSupport.NullableReferenceTypes.GetNullableReferenceType(typeName);
+
+        public string GetNullableUnconstrainedTypeParameter(string? typeName)
+            => FeatureSupport.UnconstrainedTypeParameterNullableAnnotation
+                .GetNullableReferenceType(typeName);
 
 
         private Context(

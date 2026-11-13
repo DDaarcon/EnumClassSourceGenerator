@@ -5,7 +5,8 @@ namespace EnumClasses.SourceGenerators.FeatureSupport;
 internal record struct FeatureSupportState(
     Status AlternateLookup,
     Status Utf8StringLiteral,
-    Status NullableDirective,
+    Status NullableReferenceTypes,
+    Status UnconstrainedTypeParameterNullableAnnotation,
     Status NotPattern,
     Status RequiredKeyword,
     Status InitKeyword)
