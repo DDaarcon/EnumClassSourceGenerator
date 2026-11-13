@@ -46,3 +46,33 @@ jobs:
           name: enum-classes-nuget
           path: artifacts/packages/*.nupkg
           if-no-files-found: error
+
+  publish:
+    name: Publish to NuGet.org
+    if: github.event_name == 'push'
+    needs: build-test-pack
+    runs-on: ubuntu-latest
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download NuGet package artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: enum-classes-nuget
+          path: artifacts/packages
+
+      - name: Log in to NuGet.org with Trusted Publishing
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: DDaarcon
+
+      - name: Publish NuGet package
+        run: >-
+          dotnet nuget push artifacts/packages/*.nupkg
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
