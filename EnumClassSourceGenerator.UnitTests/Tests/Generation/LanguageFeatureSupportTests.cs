@@ -105,8 +105,10 @@ public class LanguageFeatureSupportTests
         generatedSource.Should().Contain("case 0: return One;");
         generatedSource.Should().Contain("switch (value)");
         generatedSource.Should().Contain("case Raw.One:");
+        generatedSource.Should().Contain("result = default(Raw);");
         generatedSource.Should().NotContain("return index switch");
         generatedSource.Should().NotContain("result = value switch");
+        generatedSource.Should().NotContain("result = default;");
     }
 
     [Fact]
@@ -120,6 +122,32 @@ public class LanguageFeatureSupportTests
         var generatedSource = GetGeneratedSource(result);
         generatedSource.Should().Contain("return index switch");
         generatedSource.Should().Contain("result = value switch");
+    }
+
+    [Fact]
+    public void When_SpanBasedApisAreUnsupported_Then_ShouldUseStringOnlySerialization()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().NotContain("System.ReadOnlySpan<char>");
+        generatedSource.Should().NotContain("System.MemoryExtensions.AsSpan");
+        generatedSource.Should().Contain("System.String.Equals(serializedValue");
+    }
+
+    [Fact]
+    public void When_SpanBasedApisAreSupported_Then_ShouldIncludeSpanSerializationOverloads()
+    {
+        var (result, _) = RunGenerator(LanguageVersion.CSharp7_2);
+
+        var generatedSource = GetGeneratedSource(result);
+        generatedSource.Should().Contain(
+            "Deserialize(System.ReadOnlySpan<char> serializedValue)");
+        generatedSource.Should().Contain(
+            "TryDeserialize(System.ReadOnlySpan<char> serializedValue");
+        generatedSource.Should().Contain(
+            "ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)");
+        generatedSource.Should().Contain("System.MemoryExtensions.AsSpan");
     }
 
     [Fact]

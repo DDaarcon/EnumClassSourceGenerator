@@ -461,7 +461,7 @@ internal class EnumClassDeclarationTemplate
                         return true;
                     }
 
-                    result = default;
+                    result = default(Raw);
                     return false;
                 }
 
@@ -856,17 +856,7 @@ internal class EnumClassDeclarationTemplate
                     return {{ctx.GetIsNotNullExpression("result")}};
                 }
                 
-                /// <summary>
-                /// Tries to find a declared value by its case-sensitive source member name.
-                /// </summary>
-                /// <param name="serializedValue">The source member name to find.</param>
-                /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
-                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
-                {
-                    result = Deserialize(serializedValue);
-                    return {{ctx.GetIsNotNullExpression("result")}};
-                }
+                {{BuildTryDeserializeSpanOverload(ctx)}}
                 
                 /// <summary>
                 /// Determines whether a declared value has the specified case-sensitive source member name.
@@ -876,14 +866,44 @@ internal class EnumClassDeclarationTemplate
                 public static bool ContainsSerializedValue({{ctx.GetNullableReferenceType("string")}} serializedValue)
                     => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
                 
-                /// <summary>
-                /// Determines whether a declared value has the specified case-sensitive source member name.
-                /// </summary>
-                /// <param name="serializedValue">The source member name to find.</param>
-                /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
-                public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
-                    => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
+                {{BuildContainsSerializedSpanOverload(ctx)}}
                 """;
+
+            static string BuildTryDeserializeSpanOverload(Context ctx)
+            {
+                if (!ctx.FeatureSupport.SpanBasedApis.IsSupported)
+                    return "";
+
+                return $$"""
+                    /// <summary>
+                    /// Tries to find a declared value by its case-sensitive source member name.
+                    /// </summary>
+                    /// <param name="serializedValue">The source member name to find.</param>
+                    /// <param name="result">The matching declared value, or <see langword="null"/> when no value matches.</param>
+                    /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
+                    public static bool TryDeserialize(System.ReadOnlySpan<char> serializedValue, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} result)
+                    {
+                        result = Deserialize(serializedValue);
+                        return {{ctx.GetIsNotNullExpression("result")}};
+                    }
+                    """;
+            }
+
+            static string BuildContainsSerializedSpanOverload(Context ctx)
+            {
+                if (!ctx.FeatureSupport.SpanBasedApis.IsSupported)
+                    return "";
+
+                return $$"""
+                    /// <summary>
+                    /// Determines whether a declared value has the specified case-sensitive source member name.
+                    /// </summary>
+                    /// <param name="serializedValue">The source member name to find.</param>
+                    /// <returns><see langword="true"/> when a value matches; otherwise, <see langword="false"/>.</returns>
+                    public static bool ContainsSerializedValue(System.ReadOnlySpan<char> serializedValue)
+                        => {{ctx.GetIsNotNullExpression("Deserialize(serializedValue)")}};
+                    """;
+            }
 
             static string BuildDictionaryDeclaration(Context ctx)
             {
@@ -930,16 +950,26 @@ internal class EnumClassDeclarationTemplate
                                 : null;
                         }
 
-                        /// <summary>
-                        /// Finds a declared value by its case-sensitive source member name.
-                        /// </summary>
-                        /// <param name="serializedValue">The source member name to find.</param>
-                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
-                        {
-                            {{BuildSpanDeserializationBody(ctx)}}
-                        }
+                        {{BuildSpanDeserializer(ctx)}}
                         """;
+
+                    static string BuildSpanDeserializer(Context ctx)
+                    {
+                        if (!ctx.FeatureSupport.SpanBasedApis.IsSupported)
+                            return "";
+
+                        return $$"""
+                            /// <summary>
+                            /// Finds a declared value by its case-sensitive source member name.
+                            /// </summary>
+                            /// <param name="serializedValue">The source member name to find.</param>
+                            /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
+                            public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
+                            {
+                                {{BuildSpanDeserializationBody(ctx)}}
+                            }
+                            """;
+                    }
 
                     static string BuildSpanDeserializationBody(Context ctx)
                     {
@@ -970,19 +1000,41 @@ internal class EnumClassDeclarationTemplate
                             if (serializedValue is null)
                                 return null;
 
-                            return Deserialize(System.MemoryExtensions.AsSpan(serializedValue));
+                            {{BuildStringDeserializationBody(ctx)}}
                         }
 
-                        /// <summary>
-                        /// Finds a declared value by its case-sensitive source member name.
-                        /// </summary>
-                        /// <param name="serializedValue">The source member name to find.</param>
-                        /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
-                        public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
-                        {
-                            {{BuildIfChainSpanDeserializationBody(ctx)}}
-                        }
+                        {{BuildSpanDeserializer(ctx)}}
                         """;
+
+                    static string BuildStringDeserializationBody(Context ctx)
+                    {
+                        if (ctx.FeatureSupport.SpanBasedApis.IsSupported)
+                            return "return Deserialize(System.MemoryExtensions.AsSpan(serializedValue));";
+
+                        return $$"""
+                            {{ctx.GetJoinEnumValues(Consts.Nl, static enumValue
+                                => $"if (System.String.Equals(serializedValue, {enumValue.Name}._serializedName, System.StringComparison.Ordinal)) return {enumValue.Name};")}}
+                            return null;
+                            """;
+                    }
+
+                    static string BuildSpanDeserializer(Context ctx)
+                    {
+                        if (!ctx.FeatureSupport.SpanBasedApis.IsSupported)
+                            return "";
+
+                        return $$"""
+                            /// <summary>
+                            /// Finds a declared value by its case-sensitive source member name.
+                            /// </summary>
+                            /// <param name="serializedValue">The source member name to find.</param>
+                            /// <returns>The matching declared value, or <see langword="null"/> when no value matches.</returns>
+                            public static {{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} Deserialize(System.ReadOnlySpan<char> serializedValue)
+                            {
+                                {{BuildIfChainSpanDeserializationBody(ctx)}}
+                            }
+                            """;
+                    }
                 }
 
                 static string BuildIfChainSpanDeserializationBody(Context ctx)

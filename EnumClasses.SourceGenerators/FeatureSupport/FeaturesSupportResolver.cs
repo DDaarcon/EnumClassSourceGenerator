@@ -19,6 +19,7 @@ internal static class FeaturesSupportResolver
             UnconstrainedTypeParameterNullableAnnotation:
                 GetUnconstrainedTypeParameterNullableAnnotationSupport(parseOptions),
             SwitchExpression: GetSwitchExpressionSupport(parseOptions),
+            SpanBasedApis: GetSpanBasedApisSupport(compilation, parseOptions),
             NotPattern: GetNotPatternSupport(parseOptions),
             RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions));
@@ -74,6 +75,22 @@ internal static class FeaturesSupportResolver
     private static SupportStatus GetSwitchExpressionSupport(
         CSharpParseOptions parseOptions)
         => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp8);
+
+    private static SupportStatus GetSpanBasedApisSupport(
+        Compilation compilation,
+        CSharpParseOptions parseOptions)
+    {
+        if (parseOptions.LanguageVersion < LanguageVersion.CSharp7_2)
+            return SupportStatus.Unsupported;
+
+        if (compilation.GetTypeByMetadataName("System.ReadOnlySpan`1") is null
+            || compilation.GetTypeByMetadataName("System.MemoryExtensions") is null)
+        {
+            return SupportStatus.Unsupported;
+        }
+
+        return SupportStatus.Supported;
+    }
 
     private static SupportStatus GetNotPatternSupport(
         CSharpParseOptions parseOptions)
