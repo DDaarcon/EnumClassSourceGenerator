@@ -124,9 +124,9 @@ internal static class FeaturesSupportResolver
     }
 
     private static SupportStatus GetNotNullWhenAttributeSupport(Compilation compilation)
-        => compilation.GetTypeByMetadataName("System.Diagnostics.CodeAnalysis.NotNullWhenAttribute") is null
-            ? SupportStatus.Unsupported
-            : SupportStatus.Supported;
+        => HasAccessibleType(
+            compilation,
+            "System.Diagnostics.CodeAnalysis.NotNullWhenAttribute");
 
     private static SupportStatus GetUtf8StringLiteralSupport(
         CSharpParseOptions parseOptions)
@@ -218,10 +218,12 @@ internal static class FeaturesSupportResolver
         if (parseOptions.LanguageVersion < LanguageVersion.CSharp11)
             return SupportStatus.Unsupported;
 
-        if (compilation.GetTypeByMetadataName(
-                "System.Runtime.CompilerServices.RequiredMemberAttribute") is null
-            || compilation.GetTypeByMetadataName(
-                "System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute") is null)
+        if (!HasAccessibleType(
+                compilation,
+                "System.Runtime.CompilerServices.RequiredMemberAttribute").IsSupported
+            || !HasAccessibleType(
+                compilation,
+                "System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute").IsSupported)
         {
             return SupportStatus.Unsupported;
         }
@@ -234,10 +236,24 @@ internal static class FeaturesSupportResolver
         CSharpParseOptions parseOptions)
     {
         if (parseOptions.LanguageVersion >= LanguageVersion.CSharp9
-            && compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit") != null)
+            && HasAccessibleType(
+                compilation,
+                "System.Runtime.CompilerServices.IsExternalInit").IsSupported)
         {
             return SupportStatus.Supported;
         }
         return SupportStatus.Unsupported;
+    }
+
+    private static SupportStatus HasAccessibleType(
+        Compilation compilation,
+        string metadataName)
+    {
+        var type = compilation.GetTypeByMetadataName(metadataName);
+
+        return type is not null
+            && compilation.IsSymbolAccessibleWithin(type, compilation.Assembly)
+                ? SupportStatus.Supported
+                : SupportStatus.Unsupported;
     }
 }

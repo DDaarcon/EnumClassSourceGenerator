@@ -6,6 +6,8 @@
   </Folder>
   <Folder Name="/Tests/Compatibility/">
     <File Path="NugetPackageCompatibilityTestingManual.md" />
+    <Project Path="EnumClasses.CompatibilityTesting.Net462/EnumClasses.CompatibilityTesting.Net462.csproj" Id="55b53e2d-e5ec-4af8-901f-4c0a374e9262" />
+    <Project Path="EnumClasses.CompatibilityTesting.Net6/EnumClasses.CompatibilityTesting.Net6.csproj" Id="4a036840-603e-4cc6-8a0e-8c221c02e7d7" />
     <Project Path="EnumClasses.CompatibilityTesting.NetStandard2/EnumClasses.CompatibilityTesting.NetStandard2.csproj" Id="f7f42215-ff31-4d39-92c7-534ce16ef2bd" />
     <Project Path="EnumClasses.CompatibilityTesting.Net8/EnumClasses.CompatibilityTesting.Net8.csproj" Id="fea04c24-ce3b-485b-ac36-b5fa2ec6012f" />
   </Folder>
