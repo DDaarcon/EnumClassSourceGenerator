@@ -378,7 +378,9 @@ internal class EnumClassDeclarationTemplate
                 /// <summary>
                 /// Represents the declared enum-class values as a conventional enum.
                 /// </summary>
-                /// <remarks>Members receive zero-based numeric values in source declaration order.</remarks>
+                /// <remarks>{{(props.Configuration.IndexAssignmentMode.IsRuntime
+                    ? "Members receive zero-based numeric values in source declaration order; these values are independent of runtime EnumIndex assignments."
+                    : "Each member receives the same resolved numeric value as its compile-time EnumIndex.")}}</remarks>
                 public enum Raw
                 {
                     {{BuildRawEnumDefinition(enumValues, props)}}

@@ -8,6 +8,8 @@ namespace EnumClasses;
 /// <remarks>
 /// The attribute is optional. Use <see cref="EnumClassValueAttribute(int)"/> when
 /// <see cref="EnumClassAttribute.IndexAssignmentMode"/> is <see cref="IndexAssignmentMode.CompileTime"/>.
+/// In a runtime index-assignment mode, an index specified by this attribute is ignored and produces a
+/// warning; assign the generated <c>EnumIndex</c> property while creating the value instead.
 /// </remarks>
 [AttributeUsage(
     AttributeTargets.Field | AttributeTargets.Property,

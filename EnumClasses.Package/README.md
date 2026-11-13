@@ -139,7 +139,7 @@ public partial class HttpStatus
 - `RuntimeAtValueInit` generates `required int EnumIndex { get; init; }`.
 - `RuntimeAtValueCreation` generates the same init-only assignment mechanism without `required`, allowing a constructor to enforce assignment instead.
 - Every declared value must actually assign an index, and indexes must be unique. Missing or duplicate assignments throw `InvalidOperationException` from the generated type initializer (observed by callers as `TypeInitializationException`).
-- `[EnumClassValue(index)]` is not allowed in either runtime mode and produces error `ENUMCLGEN013`. Use parameterless `[EnumClassValue]` when only `SerializedName` or explicit marking is needed, and assign `EnumIndex` while creating the value.
+- `[EnumClassValue(index)]` produces warning `ENUMCLGEN013` in either runtime mode, and its index is ignored. The value assigned to the generated `EnumIndex` property by the initializer or constructor remains authoritative. Use parameterless `[EnumClassValue]` when only `SerializedName` or explicit marking is needed.
 
 ## Serialization and JSON
 
@@ -195,7 +195,7 @@ Runtime indexing combined with raw generation produces warning `ENUMCLGEN015` to
 | `ENUMCLGEN010` | Error | A candidate value field has no initializer. |
 | `ENUMCLGEN011` | Error | Values are spread across multiple partial declarations. |
 | `ENUMCLGEN012` | Error | Two compile-time indexes collide. |
-| `ENUMCLGEN013` | Error | An attribute index is specified while runtime index assignment is active. |
+| `ENUMCLGEN013` | Warning | An ignored attribute index is specified while runtime index assignment is active. |
 | `ENUMCLGEN014` | Error | One explicit index attribute is shared by multiple comma-separated fields. |
 | `ENUMCLGEN015` | Warning | Runtime indexes and generated raw-enum numeric values are independent. |
 | `ENUMCLGEN016` | Error | An unsupported `IndexAssignmentMode` numeric value was configured. |
