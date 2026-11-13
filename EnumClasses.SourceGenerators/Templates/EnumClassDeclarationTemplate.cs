@@ -665,7 +665,7 @@ internal class EnumClassDeclarationTemplate
                                 return on{{enumValue.NormalizedName}}();
                             """)}}
                     }
-                    return default;
+                    return default(TResult);
                 }
 
 
@@ -720,7 +720,7 @@ internal class EnumClassDeclarationTemplate
                                 return on{{enumValue.NormalizedName}}(state);
                             """)}}
                     }
-                    return default;
+                    return default(TResult);
                 }
                 """;
         }

@@ -107,6 +107,8 @@ public class LanguageFeatureSupportTests
         generatedSource.Should().NotContain("return index switch");
         generatedSource.Should().NotContain("result = value switch");
         generatedSource.Should().NotContain("result = default;");
+        generatedSource.Should().NotContain("return default;");
+        generatedSource.Should().Contain("return default(TResult);");
     }
 
     [Fact]
