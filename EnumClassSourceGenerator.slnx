@@ -5,6 +5,7 @@
     <Project Path="EnumClassSourceGenerator.UnitTestsLite/EnumClassSourceGenerator.UnitTestsLite.csproj" Id="8e92259f-5348-4bd4-8135-3b27e002b2f1" />
   </Folder>
   <Folder Name="/Tests/Compatibility/">
+    <File Path="NugetPackageCompatibilityTestingManual.md" />
     <Project Path="EnumClasses.CompatibilityTesting.Net8/EnumClasses.CompatibilityTesting.Net8.csproj" Id="fea04c24-ce3b-485b-ac36-b5fa2ec6012f" />
   </Folder>
   <Project Path="EnumClasses.Package/EnumClasses.Package.csproj" Id="d8cc6d2a-6767-4043-972d-2a2d4f1e7e33" />

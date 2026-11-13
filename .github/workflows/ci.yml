@@ -32,6 +32,9 @@ jobs:
       - name: Run tests
         run: dotnet test EnumClassSourceGenerator.slnx --configuration Release --no-build --no-restore
 
+      - name: Test packed NuGet package
+        run: dotnet test EnumClasses.CompatibilityTesting.NugetPackage/EnumClasses.CompatibilityTesting.NugetPackage.csproj --configuration Release
+
       - name: Pack NuGet package
         if: github.event_name == 'push'
         run: dotnet pack EnumClasses.Package/EnumClasses.Package.csproj --configuration Release --no-build --no-restore --output artifacts/packages

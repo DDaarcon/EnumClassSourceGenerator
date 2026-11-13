@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <PackageVersionUnderTest>0.0.0-package-test</PackageVersionUnderTest>
+    <PackageProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\EnumClasses.Package\EnumClasses.Package.csproj'))</PackageProject>
+    <LocalPackageSource>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)obj\local-package-source'))</LocalPackageSource>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DDaarcon.EnumClasses" Version="$(PackageVersionUnderTest)" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <Target Name="PackPackageUnderTest" BeforeTargets="Restore">
+    <PropertyGroup>
+      <PackageCacheEntry>$(MSBuildThisFileDirectory)obj\package-cache\ddaarcon.enumclasses\$(PackageVersionUnderTest)</PackageCacheEntry>
+      <PackedPackage>$(LocalPackageSource)\DDaarcon.EnumClasses.$(PackageVersionUnderTest).nupkg</PackedPackage>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(PackageCacheEntry)" />
+    <MakeDir Directories="$(LocalPackageSource)" />
+    <Delete Files="$(PackedPackage)" />
+
+    <Exec Command="dotnet pack &quot;$(PackageProject)&quot; --configuration &quot;$(Configuration)&quot; --output &quot;$(LocalPackageSource)&quot; -p:PackageVersion=$(PackageVersionUnderTest) --nologo" />
+  </Target>
+
+</Project>
