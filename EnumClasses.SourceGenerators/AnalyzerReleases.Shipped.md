@@ -23,3 +23,12 @@ ENUMCLGEN014 | EnumClassGenerator | Error | Explicit index cannot be shared by m
 ENUMCLGEN015 | EnumClassGenerator | Warning | Runtime indexes may differ from generated raw enum values
 ENUMCLGEN016 | EnumClassGenerator | Error | Unsupported index assignment mode
 ENUMCLGEN017 | EnumClassGenerator | Error | Compile-time EnumIndex must not be assigned in a value initializer
+
+## Release 0.1.2
+
+### New Rules
+
+Rule ID | Category | Severity | Notes
+--------|----------|----------|------
+ENUMCLGEN018 | EnumClassGenerator | Warning | Runtime EnumIndex falls back to a mutable setter when init is unavailable
+ENUMCLGEN019 | EnumClassGenerator | Error | JSON converter generation requires C# 7.2 and compatible framework APIs

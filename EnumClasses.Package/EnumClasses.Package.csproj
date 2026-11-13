@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
 	  <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
@@ -6,7 +6,7 @@
 	  <Nullable>enable</Nullable>
 
 	  <PackageId>DDaarcon.EnumClasses</PackageId>
-	  <Version>0.1.1-preview.1</Version>
+	  <Version>0.1.2-preview.1</Version>
 	  <Authors>DDaarcon</Authors>
 	  <Description>Source-generated enum-class types for C#.</Description>
 	  <PackageTags>enum smart-enum source-generator roslyn</PackageTags>
