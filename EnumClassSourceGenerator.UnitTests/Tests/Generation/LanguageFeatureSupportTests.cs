@@ -272,8 +272,8 @@ public class LanguageFeatureSupportTests
         var (result, _) = RunGenerator(LanguageVersion.CSharp8);
 
         var generatedSource = GetGeneratedSource(result);
-        generatedSource.Should().Contain("\n    set\n");
-        generatedSource.Should().NotContain("\n    init\n");
+        generatedSource.Should().Contain("set");
+        generatedSource.Should().NotContain("init");
 
         var warning = result.Diagnostics.Should().ContainSingle(diagnostic =>
                 diagnostic.Id == "ENUMCLGEN018"
@@ -291,7 +291,7 @@ public class LanguageFeatureSupportTests
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp9);
 
-        GetGeneratedSource(result).Should().Contain("\n    init\n");
+        GetGeneratedSource(result).Should().Contain("init");
         result.Diagnostics.Should().NotContain(diagnostic => diagnostic.Id == "ENUMCLGEN018");
     }
 

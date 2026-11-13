@@ -21,7 +21,9 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: |
+            6.0.x
+            10.0.x
 
       - name: Restore dependencies
         run: dotnet restore EnumClassSourceGenerator.slnx
@@ -29,8 +31,12 @@ jobs:
       - name: Build
         run: dotnet build EnumClassSourceGenerator.slnx --configuration Release --no-restore
 
-      - name: Run tests
-        run: dotnet test EnumClassSourceGenerator.slnx --configuration Release --no-build --no-restore
+      - name: Run cross-platform tests
+        run: |
+          dotnet test EnumClassSourceGenerator.UnitTests/EnumClassSourceGenerator.UnitTests.csproj --configuration Release --no-build --no-restore
+          dotnet test EnumClassSourceGenerator.UnitTestsLite/EnumClassSourceGenerator.UnitTestsLite.csproj --configuration Release --no-build --no-restore
+          dotnet test EnumClasses.CompatibilityTesting.Net6/EnumClasses.CompatibilityTesting.Net6.csproj --configuration Release --no-build --no-restore
+          dotnet test EnumClasses.CompatibilityTesting.Net8/EnumClasses.CompatibilityTesting.Net8.csproj --configuration Release --no-build --no-restore
 
       - name: Test packed NuGet package
         run: dotnet test EnumClasses.CompatibilityTesting.NugetPackage/EnumClasses.CompatibilityTesting.NugetPackage.csproj --configuration Release
@@ -47,10 +53,34 @@ jobs:
           path: artifacts/packages/*.nupkg
           if-no-files-found: error
 
+  test-net-framework:
+    name: Test .NET Framework 4.6.2
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore EnumClasses.CompatibilityTesting.Net462/EnumClasses.CompatibilityTesting.Net462.csproj
+
+      - name: Build
+        run: dotnet build EnumClasses.CompatibilityTesting.Net462/EnumClasses.CompatibilityTesting.Net462.csproj --configuration Release --no-restore
+
+      - name: Run .NET Framework tests
+        run: dotnet test EnumClasses.CompatibilityTesting.Net462/EnumClasses.CompatibilityTesting.Net462.csproj --configuration Release --no-build --no-restore
+
   publish:
     name: Publish to NuGet.org
     if: github.event_name == 'push'
-    needs: build-test-pack
+    needs:
+      - build-test-pack
+      - test-net-framework
     runs-on: ubuntu-latest
     environment: production
 

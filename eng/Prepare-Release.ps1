@@ -19,8 +19,19 @@ $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 function Invoke-Git {
     param([Parameter(Mandatory)][string[]] $Arguments)
 
-    $output = @(& git -C $repositoryRoot @Arguments 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell represents native stderr as ErrorRecord objects. Git uses
+        # stderr for successful status messages too, so rely on its exit code instead.
+        $ErrorActionPreference = 'Continue'
+        $output = @(& git -C $repositoryRoot @Arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($exitCode -ne 0) {
         $details = ($output | Out-String).Trim()
         throw "Git command failed: git $($Arguments -join ' ')`n$details"
     }
@@ -108,8 +119,27 @@ if ($Version -eq $currentVersion) {
     throw "The package already uses version '$Version'."
 }
 
-if ($previousReleaseNumbers -contains $analyzerReleaseVersion) {
-    throw "Analyzer release '$analyzerReleaseVersion' already exists in AnalyzerReleases.Shipped.md."
+$lastAnalyzerReleaseVersion = if ($previousReleaseNumbers.Count -gt 0) {
+    $previousReleaseNumbers[-1]
+}
+else {
+    $null
+}
+$appendToLastAnalyzerRelease = $analyzerReleaseVersion -eq $lastAnalyzerReleaseVersion
+
+if (($previousReleaseNumbers -contains $analyzerReleaseVersion) -and -not $appendToLastAnalyzerRelease) {
+    throw "Analyzer release '$analyzerReleaseVersion' already exists, but it is not the last release in AnalyzerReleases.Shipped.md."
+}
+
+$releaseBranch = "release/$Version"
+$matchingBranches = @(
+    Invoke-Git -Arguments @(
+        'branch', '--all', '--list',
+        $releaseBranch,
+        "remotes/origin/$releaseBranch")
+)
+if ($matchingBranches.Count -gt 0) {
+    throw "Release branch '$releaseBranch' already exists. No branch was checked out and no release files were changed."
 }
 
 $unshippedHeaderPattern = '\A; Unshipped analyzer release\s*'
@@ -128,15 +158,23 @@ $updatedPackageProject = [regex]::Replace(
 
 $updatedShipped = $shipped.TrimEnd()
 if (-not [string]::IsNullOrWhiteSpace($unshippedBody)) {
-    $updatedShipped += $shippedNewLine + $shippedNewLine +
-        "## Release $analyzerReleaseVersion" + $shippedNewLine + $shippedNewLine +
-        ($unshippedBody -replace "`r?`n", $shippedNewLine)
+    $normalizedUnshippedBody = $unshippedBody -replace "`r?`n", $shippedNewLine
+    if ($appendToLastAnalyzerRelease) {
+        $updatedShipped += $shippedNewLine + $shippedNewLine + $normalizedUnshippedBody
+    }
+    else {
+        $updatedShipped += $shippedNewLine + $shippedNewLine +
+            "## Release $analyzerReleaseVersion" + $shippedNewLine + $shippedNewLine +
+            $normalizedUnshippedBody
+    }
 }
 $updatedShipped += $shippedNewLine
 
 $updatedUnshipped = '; Unshipped analyzer release' + $unshippedNewLine
 
 if ($PSCmdlet.ShouldProcess($repositoryRoot, "prepare release $Version")) {
+    [void](Invoke-Git -Arguments @('switch', '--quiet', '--create', $releaseBranch))
+
     Write-Utf8WithoutBom $packageProjectPath $updatedPackageProject
     Write-Utf8WithoutBom $shippedPath $updatedShipped
     Write-Utf8WithoutBom $unshippedPath $updatedUnshipped
@@ -147,7 +185,8 @@ if ($PSCmdlet.ShouldProcess($repositoryRoot, "prepare release $Version")) {
         Write-Host '  Analyzer releases: no unshipped entries to migrate'
     }
     else {
-        Write-Host "  Migrated analyzer entries into release ${analyzerReleaseVersion}: $unshippedPath -> $shippedPath"
+        $migrationAction = if ($appendToLastAnalyzerRelease) { 'Appended analyzer entries to' } else { 'Migrated analyzer entries into' }
+        Write-Host "  $migrationAction release ${analyzerReleaseVersion}: $unshippedPath -> $shippedPath"
     }
 
     [void](Invoke-Git -Arguments @(
