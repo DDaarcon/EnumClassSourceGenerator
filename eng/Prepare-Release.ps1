@@ -8,9 +8,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$packageProjectPath = Join-Path $repositoryRoot 'EnumClasses.Package\EnumClasses.Package.csproj'
-$shippedPath = Join-Path $repositoryRoot 'EnumClasses.SourceGenerators\AnalyzerReleases.Shipped.md'
-$unshippedPath = Join-Path $repositoryRoot 'EnumClasses.SourceGenerators\AnalyzerReleases.Unshipped.md'
+$packageProjectRelativePath = 'EnumClasses.Package/EnumClasses.Package.csproj'
+$shippedRelativePath = 'EnumClasses.SourceGenerators/AnalyzerReleases.Shipped.md'
+$unshippedRelativePath = 'EnumClasses.SourceGenerators/AnalyzerReleases.Unshipped.md'
+$packageProjectPath = Join-Path $repositoryRoot $packageProjectRelativePath
+$shippedPath = Join-Path $repositoryRoot $shippedRelativePath
+$unshippedPath = Join-Path $repositoryRoot $unshippedRelativePath
 $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
 
 function Invoke-Git {
@@ -71,6 +74,14 @@ $previousVersions = @(
     [regex]::Matches($shipped, '(?m)^## Release (?<Version>\S+)\s*$') |
         ForEach-Object { $_.Groups['Version'].Value }
 )
+$previousReleaseNumbers = @(
+    $previousVersions | ForEach-Object {
+        $releaseNumberMatch = [regex]::Match($_, '^\d+\.\d+\.\d+')
+        if ($releaseNumberMatch.Success) {
+            $releaseNumberMatch.Value
+        }
+    }
+)
 
 Write-Host "Current package version: $currentVersion"
 if ($previousVersions.Count -gt 0) {
@@ -86,17 +97,19 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 $Version = $Version.Trim()
-$nugetVersionPattern = '^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$'
-if ($Version -notmatch $nugetVersionPattern) {
+$nugetVersionPattern = '^(?<Release>\d+\.\d+\.\d+)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$'
+$versionMatch = [regex]::Match($Version, $nugetVersionPattern)
+if (-not $versionMatch.Success) {
     throw "'$Version' is not a supported NuGet semantic version (for example, 1.2.3 or 1.2.3-preview.1)."
 }
+$analyzerReleaseVersion = $versionMatch.Groups['Release'].Value
 
 if ($Version -eq $currentVersion) {
     throw "The package already uses version '$Version'."
 }
 
-if ($previousVersions -contains $Version) {
-    throw "Analyzer release '$Version' already exists in AnalyzerReleases.Shipped.md."
+if ($previousReleaseNumbers -contains $analyzerReleaseVersion) {
+    throw "Analyzer release '$analyzerReleaseVersion' already exists in AnalyzerReleases.Shipped.md."
 }
 
 $unshippedHeaderPattern = '\A; Unshipped analyzer release\s*'
@@ -116,7 +129,7 @@ $updatedPackageProject = [regex]::Replace(
 $updatedShipped = $shipped.TrimEnd()
 if (-not [string]::IsNullOrWhiteSpace($unshippedBody)) {
     $updatedShipped += $shippedNewLine + $shippedNewLine +
-        "## Release $Version" + $shippedNewLine + $shippedNewLine +
+        "## Release $analyzerReleaseVersion" + $shippedNewLine + $shippedNewLine +
         ($unshippedBody -replace "`r?`n", $shippedNewLine)
 }
 $updatedShipped += $shippedNewLine
@@ -134,6 +147,17 @@ if ($PSCmdlet.ShouldProcess($repositoryRoot, "prepare release $Version")) {
         Write-Host '  Analyzer releases: no unshipped entries to migrate'
     }
     else {
-        Write-Host "  Migrated: $unshippedPath -> $shippedPath"
+        Write-Host "  Migrated analyzer entries into release ${analyzerReleaseVersion}: $unshippedPath -> $shippedPath"
     }
+
+    [void](Invoke-Git -Arguments @(
+        'add', '--',
+        $packageProjectRelativePath,
+        $shippedRelativePath,
+        $unshippedRelativePath))
+
+    $commitMessage = "release $Version"
+    $commitOutput = Invoke-Git -Arguments @('commit', '-m', $commitMessage)
+    $commitOutput | ForEach-Object { Write-Host $_ }
+    Write-Host "Committed release changes with message '$commitMessage'."
 }
