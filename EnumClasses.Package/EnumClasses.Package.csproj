@@ -11,7 +11,7 @@
 	  <Description>Source-generated enum-class types for C#.</Description>
 	  <PackageTags>enum smart-enum source-generator roslyn</PackageTags>
 
-	  <PackageProjectUrl>https://github.com/DDaarcon/EnumClasses</PackageProjectUrl>
+	  <PackageProjectUrl>https://github.com/DDaarcon/EnumClassSourceGenerator</PackageProjectUrl>
 	  <RepositoryUrl>https://github.com/DDaarcon/EnumClassSourceGenerator.git</RepositoryUrl>
 	  <RepositoryType>git</RepositoryType>
 
