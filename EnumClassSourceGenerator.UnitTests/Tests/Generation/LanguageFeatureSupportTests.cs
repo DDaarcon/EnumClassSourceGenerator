@@ -30,6 +30,26 @@ public class LanguageFeatureSupportTests
     }
 
     [Fact]
+    public void When_RequiredMemberMetadataIsUnavailable_Then_ShouldExcludeRequiredKeyword()
+    {
+        var parseOptions = new CSharpParseOptions(LanguageVersion.CSharp11);
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "MissingRequiredMemberMetadata",
+            syntaxTrees: [CSharpSyntaxTree.ParseText("", parseOptions)]);
+
+        var resolverType = typeof(global::EnumClasses.SourceGenerators.EnumClassSourceGenerator)
+            .Assembly
+            .GetType("EnumClasses.SourceGenerators.FeatureSupport.FeaturesSupportResolver")!;
+        var getSupportState = resolverType.GetMethod(
+            "GetSupportState",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+        var support = getSupportState.Invoke(null, [compilation, parseOptions])!;
+        var requiredKeyword = support.GetType().GetProperty("RequiredKeyword")!.GetValue(support);
+
+        requiredKeyword!.ToString().Should().Be("Unsupported");
+    }
+
+    [Fact]
     public void When_NullableDirectiveIsUnsupported_Then_ShouldExcludeIt()
     {
         var (result, _) = RunGenerator(LanguageVersion.CSharp7);

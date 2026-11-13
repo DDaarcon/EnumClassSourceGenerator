@@ -27,7 +27,7 @@ internal static class FeaturesSupportResolver
             SpanBasedApis: spanBasedApis,
             JsonConverter: GetJsonConverterSupport(compilation, spanBasedApis),
             NotPattern: GetNotPatternSupport(parseOptions),
-            RequiredKeyword: GetRequiredKeywordSupport(parseOptions),
+            RequiredKeyword: GetRequiredKeywordSupport(compilation, parseOptions),
             InitKeyword: GetInitKeywordSupport(compilation, parseOptions),
             NotNullWhenAttribute: GetNotNullWhenAttributeSupport(compilation));
     }
@@ -70,9 +70,40 @@ internal static class FeaturesSupportResolver
     }
 
     private static SupportStatus GetFrozenDictionarySupport(Compilation compilation)
-        => compilation.GetTypeByMetadataName("System.Collections.Frozen.FrozenDictionary`2") is null
-            ? SupportStatus.Unsupported
-            : SupportStatus.Supported;
+    {
+        var dict = compilation.GetTypeByMetadataName("System.Collections.Frozen.FrozenDictionary`2");
+        if (dict is null)
+            return SupportStatus.Unsupported;
+
+        var dictTools = compilation.GetTypeByMetadataName("System.Collections.Frozen.FrozenDictionary");
+        if (dictTools is null)
+            return SupportStatus.Unsupported;
+
+        var hasKeyValuePairOverload = dictTools.HasMethod(
+            "ToFrozenDictionary",
+            static method => method.TypeParameters.Length == 2
+                && method.Parameters.Length == 2
+                && method.Parameters[0].Type is INamedTypeSymbol enumerable
+                && enumerable.MetadataName == "IEnumerable`1"
+                && enumerable.TypeArguments[0].MetadataName == "KeyValuePair`2"
+                && method.Parameters[1].Type.MetadataName == "IEqualityComparer`1"
+                && method.Parameters[1].IsOptional);
+        var hasKeySelectorOverload = dictTools.HasMethod(
+            "ToFrozenDictionary",
+            static method => method.TypeParameters.Length == 2
+                && method.Parameters.Length == 3
+                && method.Parameters[0].Type.MetadataName == "IEnumerable`1"
+                && method.Parameters[1].Type.MetadataName == "Func`2"
+                && method.Parameters[2].Type.MetadataName == "IEqualityComparer`1"
+                && method.Parameters[2].IsOptional);
+
+        if (!hasKeyValuePairOverload || !hasKeySelectorOverload)
+        {
+            return SupportStatus.Unsupported;
+        }
+
+        return SupportStatus.Supported;
+    }
 
     private static SupportStatus GetDictionaryTryAddSupport(Compilation compilation)
     {
@@ -83,13 +114,13 @@ internal static class FeaturesSupportResolver
             return SupportStatus.Unsupported;
 
         return dictionary
-            .GetMembers("TryAdd")
-            .OfType<IMethodSymbol>()
-            .Any(method =>
-                method.Parameters.Length == 2
-                && method.ReturnType.SpecialType == SpecialType.System_Boolean)
-                    ? SupportStatus.Supported
-                    : SupportStatus.Unsupported;
+            .HasMethod(
+                "TryAdd",
+                static method
+                    => method.Parameters.Length == 2
+                        && method.ReturnType.SpecialType == SpecialType.System_Boolean)
+            ? SupportStatus.Supported
+            : SupportStatus.Unsupported;
     }
 
     private static SupportStatus GetNotNullWhenAttributeSupport(Compilation compilation)
@@ -141,7 +172,6 @@ internal static class FeaturesSupportResolver
             "System.Text.Json.JsonException",
             "System.Text.Json.JsonSerializerOptions",
             "System.Text.Json.JsonTokenType",
-            "System.Text.Json.Utf8JsonReader",
             "System.Text.Json.Utf8JsonWriter",
             "System.Text.Json.Serialization.JsonConverter`1",
             "System.Text.Json.Serialization.JsonConverterAttribute"
@@ -153,6 +183,27 @@ internal static class FeaturesSupportResolver
                 return SupportStatus.Unsupported;
         }
 
+        var reader = compilation.GetTypeByMetadataName(
+            "System.Text.Json.Utf8JsonReader");
+        if (reader is null)
+            return SupportStatus.Unsupported;
+
+        if (!reader.HasMethod(
+                "ValueTextEquals",
+                static method => method.Parameters.Length == 1 && method.ReturnType.SpecialType == SpecialType.System_Boolean)
+            || !reader.HasMethod(
+                "CopyString",
+                static method => method.Parameters.Length == 1 && method.ReturnType.SpecialType == SpecialType.System_Int32)
+            || !reader.HasProperty("TokenType")
+            || !reader.HasProperty("HasValueSequence")
+            || !reader.HasProperty("ValueIsEscaped")
+            || !reader.HasProperty("ValueSpan"))
+        {
+            return SupportStatus.Unsupported;
+        }
+
+
+
         return SupportStatus.Supported;
     }
 
@@ -161,8 +212,22 @@ internal static class FeaturesSupportResolver
         => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp9);
 
     private static SupportStatus GetRequiredKeywordSupport(
+        Compilation compilation,
         CSharpParseOptions parseOptions)
-        => parseOptions.SupportedIfAtLeast(LanguageVersion.CSharp11);
+    {
+        if (parseOptions.LanguageVersion < LanguageVersion.CSharp11)
+            return SupportStatus.Unsupported;
+
+        if (compilation.GetTypeByMetadataName(
+                "System.Runtime.CompilerServices.RequiredMemberAttribute") is null
+            || compilation.GetTypeByMetadataName(
+                "System.Runtime.CompilerServices.CompilerFeatureRequiredAttribute") is null)
+        {
+            return SupportStatus.Unsupported;
+        }
+
+        return SupportStatus.Supported;
+    }
 
     private static SupportStatus GetInitKeywordSupport(
         Compilation compilation,
