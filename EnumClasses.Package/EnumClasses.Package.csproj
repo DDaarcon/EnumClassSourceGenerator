@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFramework>net8.0</TargetFramework> <!-- Likely the oldest compatiable framework due to usage of e.g. FrozenDictionary, init -->
+	  <LangVersion>12.0</LangVersion>
+	  <Nullable>enable</Nullable>
+
+	  <PackageId>DDaarcon.EnumClasses</PackageId>
+	  <Version>0.1.0-preview.1</Version>
+	  <Authors>DDaarcon</Authors>
+	  <Description>Source-generated enum-class types for C#.</Description>
+	  <PackageTags>enum smart-enum source-generator roslyn</PackageTags>
+
+	  <PackageProjectUrl>https://github.com/DDaarcon/EnumClasses</PackageProjectUrl>
+	  <RepositoryUrl>https://github.com/DDaarcon/EnumClassSourceGenerator.git</RepositoryUrl>
+	  <RepositoryType>git</RepositoryType>
+
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
+	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+	  <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+	  <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<None Update="README.md" Pack="true" PackagePath="/" />
+
+		<Compile Include="../EnumClasses.SharedSources/**/*.cs"
+				 Link="%(RecursiveDir)%(Filename)%(Extension)"
+				 Exclude="../EnumClasses.SharedSources/obj/**/*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../EnumClasses.SourceGenerators/EnumClasses.SourceGenerators.csproj"
+						  ReferenceOutputAssembly="false"
+						  PrivateAssets="all" />
+		<None Include="../EnumClasses.SourceGenerators/bin/$(Configuration)/netstandard2.0/EnumClasses.SourceGenerators.dll"
+			  Pack="true"
+			  PackagePath="analyzers/dotnet/cs"
+			  Visible="false" />
+	</ItemGroup>
+
+</Project>
