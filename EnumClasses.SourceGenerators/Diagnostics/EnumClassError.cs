@@ -203,4 +203,61 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic ContainerPartialModifierRequired(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            ContainerPartialModifierRequiredDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor ContainerPartialModifierRequiredDescriptor =
+        new(
+            id: "ENUMCLGEN021",
+            title: "Enum Class container types must be partial",
+            messageFormat: "Container type '{0}' of Enum Class '{1}' must be declared partial",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic InvalidContainerType(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            InvalidContainerTypeDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor InvalidContainerTypeDescriptor =
+        new(
+            id: "ENUMCLGEN022",
+            title: "Enum Class container type is invalid",
+            messageFormat: "Container type '{0}' of Enum Class '{1}' has an invalid type declaration",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic GenericContainerTypeNotSupported(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            GenericContainerTypeNotSupportedDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor GenericContainerTypeNotSupportedDescriptor =
+        new(
+            id: "ENUMCLGEN023",
+            title: "Enum Classes cannot be contained in generic types",
+            messageFormat: "Enum Class '{1}' cannot be contained in generic type '{0}'",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

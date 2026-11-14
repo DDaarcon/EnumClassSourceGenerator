@@ -70,10 +70,11 @@ internal class EnumClassDeclarationTemplate
             {{ctx.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable enable")}}
             namespace {{ctx.Definition.NamespaceName}}
             {
+                {{BuildContainingTypesStart(ctx)}}
 
                 {{BuildRemarksWhenAppliable(ctx)}}
                 {{(ctx.Config.GenerateJsonConverter && ctx.FeatureSupport.JsonConverter.IsSupported ? $"[System.Text.Json.Serialization.JsonConverter(typeof({ctx.Definition.DeclarationName}.JsonConverter))]" : "")}}
-                {{ctx.Definition.Modifier}} partial class {{ctx.Definition.DeclarationName}} : System.IEquatable<{{ctx.Definition.DeclarationName}}>
+                {{ctx.Definition.Modifier}} partial {{ctx.Definition.TypeKeyword}} {{ctx.Definition.DeclarationName}} : System.IEquatable<{{ctx.Definition.DeclarationName}}>
                 {
                     {{BuildConstructor(ctx)}}
 
@@ -103,39 +104,12 @@ internal class EnumClassDeclarationTemplate
                     {{BuildRuntimeIndexingHelpersWhenApplicable(ctx)}}
 
                     {{BuildUtf8EncodedResourcesWhenApplicable(ctx)}}
-                            
-                    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-                    private static bool AreEqual({{ctx.Definition.DeclarationName}} one, {{ctx.Definition.DeclarationName}} two)
-                    {
-                        return object.ReferenceEquals(one, two);
-                    }
 
-                    /// <summary>
-                    /// Determines whether this instance and another value are the same object.
-                    /// </summary>
-                    /// <param name="other">The value to compare with this instance.</param>
-                    /// <returns><see langword="true"/> when both references identify the same object; otherwise, <see langword="false"/>.</returns>
-                    public bool Equals({{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} other)
-                    {
-                        if (other is null)
-                            return false;
-
-                        return AreEqual(this, other);
-                    }
-                            
-                    /// <inheritdoc/>
-                    public override bool Equals({{ctx.GetNullableReferenceType("object")}} obj)
-                    {
-                        return Equals(obj as {{ctx.Definition.DeclarationName}});
-                    }
-                    /// <inheritdoc/>
-                    public override int GetHashCode()
-                    {
-                        return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
-                    }
-
+                    {{BuildEqualityMethods(ctx)}}
                 }
             }
+            {{BuildContainingTypesEnd(ctx)}}
+
             {{ctx.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable disable")}}
             """;
 
@@ -1126,6 +1100,74 @@ internal class EnumClassDeclarationTemplate
                     }
                     """;
             }
+        }
+
+
+
+        static string BuildEqualityMethods(Context ctx)
+        {
+            var equalsInheritanceKeywords = ctx.Definition.IsRecord && ctx.Definition.IsNotSealed
+                ? " virtual"
+                : "";
+
+            return $$"""
+                [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+                private static bool AreEqual({{ctx.Definition.DeclarationName}} one, {{ctx.Definition.DeclarationName}} two)
+                {
+                    return object.ReferenceEquals(one, two);
+                }
+
+                /// <summary>
+                /// Determines whether this instance and another value are the same object.
+                /// </summary>
+                /// <param name="other">The value to compare with this instance.</param>
+                /// <returns><see langword="true"/> when both references identify the same object; otherwise, <see langword="false"/>.</returns>
+                public{{equalsInheritanceKeywords}} bool Equals({{ctx.GetNullableReferenceType(ctx.Definition.DeclarationName)}} other)
+                {
+                    if (other is null)
+                        return false;
+
+                    return AreEqual(this, other);
+                }
+
+                {{BuildObjectEqualityMethodWhenApplicable(ctx)}}
+
+                /// <inheritdoc/>
+                public override int GetHashCode()
+                {
+                    return System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
+                }
+                """;
+
+            static string BuildObjectEqualityMethodWhenApplicable(Context ctx)
+            {
+                if (ctx.Definition.IsRecord)
+                    return "";
+
+                return $$"""
+                    /// <inheritdoc/>
+                    public override bool Equals({{ctx.GetNullableReferenceType("object")}} obj)
+                    {
+                        return Equals(obj as {{ctx.Definition.DeclarationName}});
+                    }
+                    """;
+            }
+        }
+
+
+
+        static string BuildContainingTypesStart(Context ctx)
+        {
+            return string.Join(Consts.Nl, ctx.Definition.ContainersOrderedFromOuter.Select(x => $$"""
+                {{x.Modifier}} partial {{x.TypeKeyword}} {{x.DeclarationName}}
+                {
+                """));
+        }
+
+
+        static string BuildContainingTypesEnd(Context ctx)
+        {
+            return string.Join(Consts.Nl, ctx.Definition.ContainersOrderedFromOuter.Select(x => "}"));
         }
 
 

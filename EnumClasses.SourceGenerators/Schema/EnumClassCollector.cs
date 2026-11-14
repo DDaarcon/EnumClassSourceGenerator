@@ -21,21 +21,33 @@ internal static class EnumClassCollector
         Location? AttributeLocation = null,
         string? DeclarationName = null,
         string? NamespaceName = null,
+        string? TypeKeyword = null,
         string? Modifier = null,
         bool HasExplicitInstanceConstructor = false,
         EnumValueCollector.CollectResult EnumValues = default,
         FeatureSupportState FeatureSupport = default,
-        bool IsAlternateLookupSupported = false,
+        Definition.ContainingType[]? ContainersOrderedFromOuter = null,
+        bool IsRecord = false,
+        bool IsNotSealed = false,
 
         IEnumerable<Diagnostic>? DiagnosticReports = null)
     {
-        public readonly string FullyQualifiedName => $"{NamespaceName}.{DeclarationName}";
+        public readonly string FullyQualifiedName
+        {
+            get
+            {
+                if (ContainersOrderedFromOuter is null || ContainersOrderedFromOuter.Length == 0)
+                    return $"{NamespaceName}.{DeclarationName}";
+
+                return $"{NamespaceName}.{string.Join(".", ContainersOrderedFromOuter.Select(x => x.DeclarationName))}.{DeclarationName}";
+            }
+        }
 
         public enum StatusCode
         {
             Ok,
             NonApplicable,
-            InvalidClassDeclaration,
+            InvalidTypeDeclaration,
             InvalidValues
         }
 
@@ -44,6 +56,10 @@ internal static class EnumClassCollector
             ConfigurationOverrides ConfigurationOverrides,
             Configuration Configuration);
 
+        public record struct ContainingType(
+            string DeclarationName,
+            string TypeKeyword,
+            string Modifier);
     }
 
 
@@ -51,7 +67,7 @@ internal static class EnumClassCollector
         AttributeData Data);
 
 
-    public static Definition.WithConfig CollectDefinition(ClassDeclarationSyntax component, ISymbol componentSymbol, OurAttribute attribute, SemanticModel semanticModel, CancellationToken token)
+    public static Definition.WithConfig CollectDefinition(TypeDeclarationSyntax component, ISymbol componentSymbol, OurAttribute attribute, SemanticModel semanticModel, CancellationToken token)
     {
         var instanceConfig = CollectInstanceConfiguration(attribute.Data, out var configurationDiagnostic);
         var configDefaults = CollectDefaultConfiguration(componentSymbol.ContainingAssembly);
@@ -65,16 +81,13 @@ internal static class EnumClassCollector
 
         var namespaceName = GetNamespaceDeclaration(componentSymbol);
 
-        var accessModifiers = component.Modifiers
-            .Where(x => x.IsKind(SyntaxKind.PublicKeyword)
-                || x.IsKind(SyntaxKind.InternalKeyword)
-                || x.IsKind(SyntaxKind.PrivateKeyword)
-                || x.IsKind(SyntaxKind.ProtectedKeyword));
+
+        var accessModifiers = component.Modifiers.GetAccessModifiers();
 
         var typeSymbol = (INamedTypeSymbol)componentSymbol;
         var declarations = typeSymbol.DeclaringSyntaxReferences
             .Select(reference => reference.GetSyntax(token))
-            .OfType<ClassDeclarationSyntax>()
+            .OfType<TypeDeclarationSyntax>()
             .ToArray();
         var explicitInstanceConstructors = typeSymbol.InstanceConstructors
             .Where(constructor => !constructor.IsImplicitlyDeclared)
@@ -90,10 +103,6 @@ internal static class EnumClassCollector
         var reports = new List<Diagnostic>();
         if (configurationDiagnostic is not null)
             reports.Add(configurationDiagnostic);
-
-        bool isNested = component.Parent is TypeDeclarationSyntax;
-        if (isNested)
-            reports.Add(EnumClassError.NestedTypeNotSupported(declarationLocation, declarationName));
 
         bool isGeneric = component.TypeParameterList is { Parameters.Count: > 0 };
         if (isGeneric)
@@ -122,14 +131,57 @@ internal static class EnumClassCollector
                     constructor.Locations.FirstOrDefault() ?? declarationLocation,
                     declarationName)));
 
+
+        var collectedContainers = EnumContainerClassesCollector.CollectDefinitions(component);
+        bool isContainerInvalid = false;
+
+        foreach (var container in collectedContainers)
+        {
+            if (container.CollectionStatus is EnumContainerClassesCollector.Definition.Status.Ok)
+                continue;
+
+            isContainerInvalid = true;
+            reports.Add(container.CollectionStatus switch
+            {
+                EnumContainerClassesCollector.Definition.Status.MissingPartialKeyword
+                    => EnumClassError.ContainerPartialModifierRequired(
+                        container.Location,
+                        containerName: container.DeclarationName,
+                        declarationName),
+                EnumContainerClassesCollector.Definition.Status.Misconfigured
+                    => EnumClassError.InvalidContainerType(
+                        container.Location,
+                        containerName: container.DeclarationName,
+                        declarationName),
+                EnumContainerClassesCollector.Definition.Status.GenericTypeNotSupported
+                    => EnumClassError.GenericContainerTypeNotSupported(
+                        container.Location,
+                        containerName: container.DeclarationName,
+                        declarationName),
+                _ => throw new InvalidOperationException("Undefined value")
+            });
+        }
+
+        var containers = collectedContainers.Select(x
+            => new Definition.ContainingType(
+                x.DeclarationName,
+                x.TypeKeyword,
+                x.Modifier ?? ""))
+            .ToArray();
+
+
+        bool isRecord = component is RecordDeclarationSyntax;
+        bool isNotSealed = !component.Modifiers.Any(SyntaxKind.SealedKeyword);
+
+
         Span<bool> checks = stackalloc bool[]
         {
-            isNested,
             isGeneric,
             isNamespaceMissing,
             areAccessorsMissing,
             arePartialModifiersMissing,
             areInvalidConstructorsDefined,
+            isContainerInvalid,
             configurationDiagnostic is not null
         };
 
@@ -137,14 +189,18 @@ internal static class EnumClassCollector
         {
             return new(
                 new Definition(
-                    Status: Definition.StatusCode.InvalidClassDeclaration,
+                    Status: Definition.StatusCode.InvalidTypeDeclaration,
                     Location: declarationLocation,
                     AttributeLocation: attributeLocation,
                     DeclarationName: component.Identifier.ValueText,
                     NamespaceName: namespaceName,
+                    TypeKeyword: component.GetTypeKeyword(),
                     Modifier: accessModifiers.FirstOrDefault().Text,
                     HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
-                    FeatureSupport:featureSupport,
+                    FeatureSupport: featureSupport,
+                    ContainersOrderedFromOuter: containers,
+                    IsRecord: isRecord,
+                    IsNotSealed: isNotSealed,
                     DiagnosticReports: reports),
                 instanceConfig,
                 config
@@ -166,14 +222,18 @@ internal static class EnumClassCollector
 
             return new(
                 new Definition(
-                    Status: Definition.StatusCode.InvalidClassDeclaration,
+                    Status: Definition.StatusCode.InvalidTypeDeclaration,
                     Location: declarationLocation,
                     AttributeLocation: attributeLocation,
                     DeclarationName: declarationName,
                     NamespaceName: namespaceName,
+                    TypeKeyword: component.GetTypeKeyword(),
                     Modifier: accessModifiers.First().Text,
                     HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
                     FeatureSupport: featureSupport,
+                    ContainersOrderedFromOuter: containers,
+                    IsRecord: isRecord,
+                    IsNotSealed: isNotSealed,
                     DiagnosticReports: reports),
                 instanceConfig,
                 config
@@ -194,11 +254,15 @@ internal static class EnumClassCollector
                 Location: component.GetLocation(),
                 AttributeLocation: attributeLocation,
                 NamespaceName: namespaceName,
+                TypeKeyword: component.GetTypeKeyword(),
                 DeclarationName: component.Identifier.ValueText,
                 Modifier: accessModifiers.First().Text,
                 HasExplicitInstanceConstructor: explicitInstanceConstructors.Length > 0,
                 EnumValues: enumValuesCollectionResult,
                 FeatureSupport: featureSupport,
+                ContainersOrderedFromOuter: containers,
+                IsRecord: isRecord,
+                IsNotSealed: isNotSealed,
                 DiagnosticReports: enumValuesDiagnosticReports),
             instanceConfig,
             config
@@ -237,7 +301,7 @@ internal static class EnumClassCollector
                 definition.DeclarationName!));
         }
 
-        if (definition.Status is Definition.StatusCode.InvalidClassDeclaration)
+        if (definition.Status is Definition.StatusCode.InvalidTypeDeclaration)
         {
             return collectedDefinition with
             {

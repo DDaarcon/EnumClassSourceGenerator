@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
@@ -123,6 +124,45 @@ internal static class SyntaxExtensions
                 return null;
 
             return (TEnum)(object)converted.Value;
+        }
+    }
+
+
+
+    extension (SyntaxTokenList tokens)
+    {
+        public IEnumerable<SyntaxToken> GetAccessModifiers()
+            => tokens
+                .Where(x => x.IsKind(SyntaxKind.PublicKeyword)
+                    || x.IsKind(SyntaxKind.InternalKeyword)
+                    || x.IsKind(SyntaxKind.PrivateKeyword)
+                    || x.IsKind(SyntaxKind.ProtectedKeyword));
+
+    }
+
+
+
+    extension (SyntaxNode node)
+    {
+        public bool IsObjectType()
+            => node.IsKind(SyntaxKind.ClassDeclaration)
+                || node.IsKind(SyntaxKind.RecordDeclaration);
+
+    }
+
+
+
+    extension (TypeDeclarationSyntax syntax)
+    {
+        public string GetTypeKeyword()
+        {
+            if (syntax is RecordDeclarationSyntax record
+                && !record.ClassOrStructKeyword.IsKind(SyntaxKind.None))
+            {
+                return $"{record.Keyword.ValueText} {record.ClassOrStructKeyword.ValueText}";
+            }
+
+            return syntax.Keyword.ValueText;
         }
     }
 }

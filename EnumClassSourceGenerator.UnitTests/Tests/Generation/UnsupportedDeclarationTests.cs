@@ -71,28 +71,6 @@ public class UnsupportedDeclarationTests
         result.GeneratedSources.Should().NotContain(x => x.HintName == "Consumer.SplitEnumJsonConverter.g.cs");
     }
 
-    [Fact]
-    public void When_EnumClassIsNested_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()
-    {
-        const string source = """
-            using EnumClasses;
-
-            namespace Consumer;
-
-            internal partial class Container
-            {
-                [EnumClass]
-                internal partial class NestedEnum
-                {
-                }
-            }
-            """;
-
-        var result = RunGenerator(source);
-
-        result.Diagnostics.Should().ContainSingle(x => x.Id == "ENUMCLGEN006");
-        result.GeneratedSources.Should().NotContain(x => x.HintName == "NestedEnum.g.cs");
-    }
 
     [Fact]
     public void When_EnumClassIsGeneric_Then_ShouldReportDedicatedDiagnosticAndSkipGeneration()

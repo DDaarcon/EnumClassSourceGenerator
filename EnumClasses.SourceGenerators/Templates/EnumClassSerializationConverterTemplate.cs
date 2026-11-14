@@ -1,5 +1,6 @@
 ﻿using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.GenerationStrategies;
+using System;
 using System.Linq;
 using EnumClassProps = EnumClasses.SourceGenerators.Schema.EnumClassCollector.Definition.WithConfig;
 using EnumValueDefinition = EnumClasses.SourceGenerators.Schema.EnumValueCollector.Definition;
@@ -21,7 +22,9 @@ internal class EnumClassSerializationConverterTemplate
             
             namespace {{definition.NamespaceName}}
             {
-                {{definition.Modifier}} partial class {{definition.DeclarationName}}
+                {{BuildContainingTypesStart(props)}}
+
+                {{definition.Modifier}} partial {{definition.TypeKeyword}} {{definition.DeclarationName}}
                 {
 
                     internal class JsonConverter : System.Text.Json.Serialization.JsonConverter<{{definition.DeclarationName}}>
@@ -39,6 +42,8 @@ internal class EnumClassSerializationConverterTemplate
                         {{BuildUtf8JsonReadingHelpWhenApplicable(enumValues, props)}}
                     }
                 }
+
+                {{BuildContainingTypesEnd(props)}}
             }
             
             {{definition.FeatureSupport.NullableReferenceTypes.IfSupportedOrNull("#nullable disable")}}
@@ -184,6 +189,24 @@ internal class EnumClassSerializationConverterTemplate
                     }
                 }
                 """;
+        }
+
+
+
+
+
+        static string BuildContainingTypesStart(EnumClassProps props)
+        {
+            return string.Join(Consts.Nl, props.Definition.ContainersOrderedFromOuter.Select(x => $$"""
+                {{x.Modifier}} partial {{x.TypeKeyword}} {{x.DeclarationName}}
+                {
+                """));
+        }
+
+
+        static string BuildContainingTypesEnd(EnumClassProps props)
+        {
+            return string.Join(Consts.Nl, props.Definition.ContainersOrderedFromOuter.Select(x => "}"));
         }
 
 

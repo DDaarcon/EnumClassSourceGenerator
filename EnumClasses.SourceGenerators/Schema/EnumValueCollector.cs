@@ -52,7 +52,7 @@ internal static class EnumValueCollector
     }
 
 
-    public static CollectResult CollectDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    public static CollectResult CollectDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var fieldDefinitionsCollection = CollectFieldDefinitions(component, semanticModel, token);
         var propertyDefinitionsCollection = CollectPropertyDefinitions(component, semanticModel, token);
@@ -76,7 +76,7 @@ internal static class EnumValueCollector
         SyntaxKind.PublicKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectedValueData[] CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectPropertyDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
@@ -170,7 +170,7 @@ internal static class EnumValueCollector
         SyntaxKind.ReadOnlyKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectedValueData[] CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectFieldDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
