@@ -212,6 +212,6 @@ internal class EnumClassSerializationConverterTemplate
 
 
         static LookupImplementation GetLookupImplementationForUtf8Keys(EnumValueDefinition[] enumValues, EnumClassProps props)
-            => LookupImplementationSelector.Get(props, enumValues.Length, LookupImplementationSelector.Target.Utf8Keys);
+            => Utf8KeysLookupImplementationSelector.Get(props, enumValues.Length);
     }
 }

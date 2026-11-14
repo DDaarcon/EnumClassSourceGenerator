@@ -1209,22 +1209,19 @@ internal class EnumClassDeclarationTemplate
 
 
         static LookupImplementation GetLookupImplementationForStringKeys(Context ctx)
-            => LookupImplementationSelector.Get(
+            => StringKeysLookupImplementationSelector.Get(
                 ctx.Props,
-                ctx.EnumValues.Length,
-                LookupImplementationSelector.Target.StringKeys);
+                ctx.EnumValues.Length);
 
         static LookupImplementation GetLookupImplementationForUtf8Keys(Context ctx)
-            => LookupImplementationSelector.Get(
+            => Utf8KeysLookupImplementationSelector.Get(
                 ctx.Props,
-                ctx.EnumValues.Length,
-                LookupImplementationSelector.Target.Utf8Keys);
+                ctx.EnumValues.Length);
 
         static LookupImplementation GetLookupImplementationForIntKeys(Context ctx)
-            => LookupImplementationSelector.Get(
+            => IntKeysLookupImplementationSelector.Get(
                 ctx.Props,
-                ctx.EnumValues.Length,
-                LookupImplementationSelector.Target.IntKeys);
+                ctx.EnumValues.Length);
     }
 
 
