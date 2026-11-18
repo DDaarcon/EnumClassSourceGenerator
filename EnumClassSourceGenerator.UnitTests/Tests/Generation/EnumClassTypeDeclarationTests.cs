@@ -7,16 +7,19 @@ namespace EnumClassSourceGenerator.UnitTests.Tests;
 
 public class EnumClassTypeDeclarationTests
 {
-    [Fact]
-    public void When_EnumClassIsARecord_Then_ShouldGenerateEnumClassMembers()
+    [Theory]
+    [InlineData("partial record")]
+    [InlineData("partial record class")]
+    [InlineData("sealed partial record")]
+    public void When_EnumClassIsARecord_Then_ShouldGenerateEnumClassMembers(string typeDeclaration)
     {
-        const string source = """
+        var source = $$"""
             using EnumClasses;
 
             namespace Consumer;
 
             [EnumClass(ConstructionRestrictionMode = ConstructionRestrictionMode.Off)]
-            internal partial record RecordEnum
+            internal {{typeDeclaration}} RecordEnum
             {
                 public static readonly RecordEnum One = new();
             }
