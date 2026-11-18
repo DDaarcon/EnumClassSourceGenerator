@@ -16,5 +16,5 @@ internal class StringKeysLookupImplementationSelector
         return LookupImplementation.Dictionary;
     }
 
-    private const int _dictionaryImplThreshold = 8;
+    private const int _dictionaryImplThreshold = 6; // based on results of a benchmark
 }

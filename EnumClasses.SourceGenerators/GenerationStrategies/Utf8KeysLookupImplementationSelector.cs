@@ -20,5 +20,5 @@ internal class Utf8KeysLookupImplementationSelector
         return LookupImplementation.Dictionary;
     }
 
-    private const int _dictionaryImplThreshold = 16;
+    private const int _dictionaryImplThreshold = 24; // based on results of a benchmark
 }

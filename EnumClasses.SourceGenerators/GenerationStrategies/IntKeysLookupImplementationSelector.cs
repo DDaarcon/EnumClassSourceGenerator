@@ -16,5 +16,5 @@ internal class IntKeysLookupImplementationSelector
         return LookupImplementation.Dictionary;
     }
 
-    private const int _dictionaryImplThreshold = 12;
+    private const int _dictionaryImplThreshold = 2; // based on results of a benchmark
 }
