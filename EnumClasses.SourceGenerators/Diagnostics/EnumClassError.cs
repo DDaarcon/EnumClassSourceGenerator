@@ -260,4 +260,27 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic CollidingSerializedNames(
+        Location? valueLocation,
+        string declarationName,
+        string valueName,
+        string serializedName,
+        string collidingValuesList)
+        => Diagnostic.Create(
+            CollidingSerializedNamesDescriptor,
+            valueLocation,
+            declarationName,
+            valueName,
+            serializedName,
+            collidingValuesList);
+
+    public static readonly DiagnosticDescriptor CollidingSerializedNamesDescriptor =
+        new(
+            id: "ENUMCLGEN024",
+            title: "Enum Class values' serialized names must be unique",
+            messageFormat: "Enum Class '{0}' value '{1}' uses serialized name '{2}', which is also used by '{3}'",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

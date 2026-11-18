@@ -146,7 +146,7 @@ The serialized value defaults to the source member name and is case-sensitive. O
 public static readonly OrderStatus AwaitingPayment = new();
 ```
 
-`Serialize()` and `ToString()` return that name. `Deserialize` returns the matching declared instance or `null`; `TryDeserialize` and `ContainsSerializedValue` provide non-null-check alternatives. Duplicate serialized names are not supported and may fail during generated lookup initialization.
+`Serialize()` and `ToString()` return that name. `Deserialize` returns the matching declared instance or `null`; `TryDeserialize` and `ContainsSerializedValue` provide non-null-check alternatives. Serialized names must be unique across both explicit names and member-name defaults; duplicates produce `ENUMCLGEN024`.
 
 When enabled, the generated `System.Text.Json` converter writes a JSON string and restores the declared singleton instance. Unknown names and non-string tokens cause `JsonException`. Serialized names are therefore part of the wire contract and should be changed deliberately.
 
@@ -198,6 +198,7 @@ Runtime indexing combined with raw generation produces warning `ENUMCLGEN015` to
 | `ENUMCLGEN017` | Error | A value initializer assigns `EnumIndex` while using compile-time index assignment. |
 | `ENUMCLGEN018` | Warning | Runtime indexing must use a mutable public setter because an `init` accessor is unavailable. |
 | `ENUMCLGEN019` | Error | JSON converter generation is enabled but the consumer lacks C# 7.2, compatible `System.Text.Json`, or required span APIs. |
+| `ENUMCLGEN024` | Error | Two or more values resolve to the same serialized name. |
 
 Generator errors intentionally prevent the affected values from participating in the generated contract; do not suppress them as a compatibility strategy.
 
