@@ -15,21 +15,28 @@ internal class EnumClassDeclarationTemplate
 {
     public static bool CheckIfNameIsReserved(string name)
     {
-        if (_defaultKeywords.Contains(name))
+        if (_reservedMemberNames.Contains(name))
             return true;
         return false;
     }
 
-    private static readonly string[] _defaultKeywords = [
-        "AllValues",
-        "EnumIndex",
+    private static readonly string[] _reservedMemberNames = [
+        "ToString",
         "Serialize",
         "Deserialize",
         "TryDeserialize",
         "ContainsSerializedValue",
+
+
+        "AllValues",
+        "EnumIndex",
         "GetByEnumIndex",
         "TryGetByEnumIndex",
         "ContainsEnumIndex",
+        "_enumIndexAssigned",
+        "_valuesByEnumIndex",
+
+
         "Switch",
         "SwitchEx",
         "Match",
@@ -44,10 +51,9 @@ internal class EnumClassDeclarationTemplate
         "_valuesBySerializedNameSpanLookup",
         "_serializedName",
         "_internalIndex",
+        "CreateRuntimeIndexDictionary",
+        "ValidateRuntimeIndexes",
 
-        // Numbered
-        "_usedIndexes",
-        "EnsureEnumIndexIsFree",
 
         // Raw values
         "_rawValue",
@@ -56,7 +62,13 @@ internal class EnumClassDeclarationTemplate
         "TryFromRaw",
         "ToRaw",
         "TryToRaw",
-        "value__" // compiler reserved enum value
+        "value__", // compiler reserved enum value
+
+
+        "JsonConverter",
+        "_valuesBySerializedUtf8Name",
+        "_valuesBySerializedUtf8NameSpanLookup",
+        "Utf8MemoryComparer"
     ];
 
 
