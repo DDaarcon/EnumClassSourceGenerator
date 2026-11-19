@@ -12,4 +12,9 @@
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\EnumClasses.Package\EnumClasses.Package.csproj" />
+    <ProjectReference Include="..\EnumClasses.SourceGenerators\EnumClasses.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

@@ -2,9 +2,9 @@
 using EnumClasses.SourceGenerators.Diagnostics;
 using EnumClasses.SourceGenerators.FeatureSupport;
 using EnumClasses.SourceGenerators.Schema;
+using EnumClasses.SourceGenerators.Schema.Help;
 using EnumClasses.SourceGenerators.Templates;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System;
@@ -46,10 +46,10 @@ namespace EnumClasses.SourceGenerators
 
         private static bool CheckIfApplicable(SyntaxNode node, CancellationToken token)
         {
-            if (!node.IsKind(SyntaxKind.ClassDeclaration))
+            if (!node.IsObjectType()) // TODO do not reject here, but later and with error?
                 return false;
 
-            if (node is not ClassDeclarationSyntax)
+            if (node is not TypeDeclarationSyntax)
                 return false;
 
             return true;
@@ -58,7 +58,7 @@ namespace EnumClasses.SourceGenerators
 
         private static EnumClassCollector.Definition.WithConfig ConstructClassDefinitions(GeneratorAttributeSyntaxContext context, CancellationToken token)
         {
-            var classNode = (context.TargetNode as ClassDeclarationSyntax)!;
+            var classNode = (context.TargetNode as TypeDeclarationSyntax)!;
 
             return EnumClassCollector.CollectDefinition(
                 component: classNode,

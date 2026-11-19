@@ -116,6 +116,98 @@ public class EnumClassValueAttributeTests
     }
 
     [Fact]
+    public void When_ExplicitSerializedNamesOverlap_Then_ShouldReportEveryValue()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class DuplicateSerializedNamesEnum
+            {
+                [EnumClassValue(SerializedName = "duplicate")]
+                public static DuplicateSerializedNamesEnum First { get; } = new();
+
+                [EnumClassValue(enumIndex: 2, serializedName: "duplicate")]
+                public static readonly DuplicateSerializedNamesEnum Second = new();
+            }
+            """;
+
+        var (result, _) = RunGenerator(source);
+
+        var diagnostics = result.Diagnostics.Where(x => x.Id == "ENUMCLGEN024").ToArray();
+        diagnostics.Should().HaveCount(2);
+        diagnostics.Should().OnlyContain(x => x.Severity == DiagnosticSeverity.Error);
+        diagnostics.Select(x => x.GetMessage()).Should().BeEquivalentTo(
+            "Enum Class 'DuplicateSerializedNamesEnum' value 'First' uses serialized name 'duplicate', which is also used by 'Second'",
+            "Enum Class 'DuplicateSerializedNamesEnum' value 'Second' uses serialized name 'duplicate', which is also used by 'First'");
+
+        var generatedSource = GetGeneratedSource(result, "Consumer.DuplicateSerializedNamesEnum.g.cs");
+        generatedSource.Should().NotContain("First._serializedName");
+        generatedSource.Should().NotContain("Second._serializedName");
+    }
+
+    [Fact]
+    public void When_ExplicitSerializedNameOverlapsImplicitMemberName_Then_ShouldReportBothValues()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class ExplicitAndImplicitSerializedNamesEnum
+            {
+                public static ExplicitAndImplicitSerializedNamesEnum DefaultProperty { get; } = new();
+
+                [EnumClassValue(SerializedName = "DefaultProperty")]
+                public static readonly ExplicitAndImplicitSerializedNamesEnum ExplicitForProperty = new();
+
+                public static readonly ExplicitAndImplicitSerializedNamesEnum DefaultField = new();
+
+                [EnumClassValue(SerializedName = "DefaultField")]
+                public static ExplicitAndImplicitSerializedNamesEnum ExplicitForField { get; } = new();
+            }
+            """;
+
+        var (result, _) = RunGenerator(source);
+
+        var diagnostics = result.Diagnostics.Where(x => x.Id == "ENUMCLGEN024").ToArray();
+        diagnostics.Should().HaveCount(4);
+        diagnostics.Select(x => x.GetMessage()).Should().BeEquivalentTo(
+            "Enum Class 'ExplicitAndImplicitSerializedNamesEnum' value 'DefaultProperty' uses serialized name 'DefaultProperty', which is also used by 'ExplicitForProperty'",
+            "Enum Class 'ExplicitAndImplicitSerializedNamesEnum' value 'ExplicitForProperty' uses serialized name 'DefaultProperty', which is also used by 'DefaultProperty'",
+            "Enum Class 'ExplicitAndImplicitSerializedNamesEnum' value 'DefaultField' uses serialized name 'DefaultField', which is also used by 'ExplicitForField'",
+            "Enum Class 'ExplicitAndImplicitSerializedNamesEnum' value 'ExplicitForField' uses serialized name 'DefaultField', which is also used by 'DefaultField'");
+    }
+
+    [Fact]
+    public void When_ExplicitSerializedNameIsSharedByCommaSeparatedFields_Then_ShouldReportEveryField()
+    {
+        const string source = """
+            using EnumClasses;
+
+            namespace Consumer;
+
+            [EnumClass(GenerateJsonConverter = false)]
+            internal partial class SharedSerializedNameEnum
+            {
+                [EnumClassValue(SerializedName = "shared")]
+                public static readonly SharedSerializedNameEnum First = new(), Second = new();
+            }
+            """;
+
+        var (result, _) = RunGenerator(source);
+
+        result.Diagnostics.Count(x => x.Id == "ENUMCLGEN024").Should().Be(2);
+
+        var generatedSource = GetGeneratedSource(result, "Consumer.SharedSerializedNameEnum.g.cs");
+        generatedSource.Should().NotContain("First._serializedName");
+        generatedSource.Should().NotContain("Second._serializedName");
+    }
+
+    [Fact]
     public void When_ExplicitIndexIsSharedByCommaSeparatedFields_Then_ShouldRequireSeparateDeclarations()
     {
         const string source = """

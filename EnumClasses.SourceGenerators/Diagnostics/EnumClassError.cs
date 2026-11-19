@@ -191,4 +191,96 @@ internal static class EnumClassError
             category: DiagnosticsShared.Category,
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static Diagnostic PartialModifierRequired(Location? declarationLocation, string declarationName)
+        => Diagnostic.Create(PartialModifierRequiredDescriptor, declarationLocation, declarationName);
+
+    public static readonly DiagnosticDescriptor PartialModifierRequiredDescriptor =
+        new(
+            id: "ENUMCLGEN020",
+            title: "Enum Classes must be partial",
+            messageFormat: "Enum Class '{0}' must be declared partial",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic ContainerPartialModifierRequired(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            ContainerPartialModifierRequiredDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor ContainerPartialModifierRequiredDescriptor =
+        new(
+            id: "ENUMCLGEN021",
+            title: "Enum Class container types must be partial",
+            messageFormat: "Container type '{0}' of Enum Class '{1}' must be declared partial",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic InvalidContainerType(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            InvalidContainerTypeDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor InvalidContainerTypeDescriptor =
+        new(
+            id: "ENUMCLGEN022",
+            title: "Enum Class container type is invalid",
+            messageFormat: "Container type '{0}' of Enum Class '{1}' has an invalid type declaration",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic GenericContainerTypeNotSupported(
+        Location? containerLocation,
+        string containerName,
+        string declarationName)
+        => Diagnostic.Create(
+            GenericContainerTypeNotSupportedDescriptor,
+            containerLocation,
+            containerName,
+            declarationName);
+
+    public static readonly DiagnosticDescriptor GenericContainerTypeNotSupportedDescriptor =
+        new(
+            id: "ENUMCLGEN023",
+            title: "Enum Classes cannot be contained in generic types",
+            messageFormat: "Enum Class '{1}' cannot be contained in generic type '{0}'",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+    public static Diagnostic CollidingSerializedNames(
+        Location? valueLocation,
+        string declarationName,
+        string valueName,
+        string serializedName,
+        string collidingValuesList)
+        => Diagnostic.Create(
+            CollidingSerializedNamesDescriptor,
+            valueLocation,
+            declarationName,
+            valueName,
+            serializedName,
+            collidingValuesList);
+
+    public static readonly DiagnosticDescriptor CollidingSerializedNamesDescriptor =
+        new(
+            id: "ENUMCLGEN024",
+            title: "Enum Class values' serialized names must be unique",
+            messageFormat: "Enum Class '{0}' value '{1}' uses serialized name '{2}', which is also used by '{3}'",
+            category: DiagnosticsShared.Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
 }

@@ -52,7 +52,7 @@ internal static class EnumValueCollector
     }
 
 
-    public static CollectResult CollectDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    public static CollectResult CollectDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var fieldDefinitionsCollection = CollectFieldDefinitions(component, semanticModel, token);
         var propertyDefinitionsCollection = CollectPropertyDefinitions(component, semanticModel, token);
@@ -63,7 +63,10 @@ internal static class EnumValueCollector
             .ToArray();
 
 
-        return new CollectResult(ConstructUnresolvedDefinitions(definitionsInDeclarationOrder));
+        var definitions = ConstructUnresolvedDefinitions(definitionsInDeclarationOrder);
+        AddSerializedNameCollisionDiagnostics(definitions, component.Identifier.ValueText);
+
+        return new CollectResult(definitions);
     }
 
     public static CollectResult ResolveIndexes(CollectResult collectedValues, Configuration configuration, string declarationName)
@@ -76,7 +79,7 @@ internal static class EnumValueCollector
         SyntaxKind.PublicKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectedValueData[] CollectPropertyDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectPropertyDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
@@ -170,7 +173,7 @@ internal static class EnumValueCollector
         SyntaxKind.ReadOnlyKeyword,
         SyntaxKind.StaticKeyword
     ];
-    private static CollectedValueData[] CollectFieldDefinitions(ClassDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
+    private static CollectedValueData[] CollectFieldDefinitions(TypeDeclarationSyntax component, SemanticModel semanticModel, CancellationToken token)
     {
         var componentTypeSymbol = (ITypeSymbol)semanticModel.GetDeclaredSymbol(component)!;
         var declarationName = component.Identifier.ValueText;
@@ -409,6 +412,52 @@ internal static class EnumValueCollector
         }
 
         return definitions;
+    }
+
+    private static void AddSerializedNameCollisionDiagnostics(Definition[] definitions, string declarationName)
+    {
+        var definitionIndexesBySerializedName = new Dictionary<string, List<int>>(
+            definitions.Length,
+            StringComparer.Ordinal);
+
+        for (var definitionIndex = 0; definitionIndex < definitions.Length; definitionIndex++)
+        {
+            var definition = definitions[definitionIndex];
+            var serializedName = definition.ExplicitSerializedName ?? definition.NormalizedName;
+
+            if (!definitionIndexesBySerializedName.TryGetValue(serializedName, out var indexes))
+            {
+                indexes = [];
+                definitionIndexesBySerializedName.Add(serializedName, indexes);
+            }
+
+            indexes.Add(definitionIndex);
+        }
+
+        foreach (var definitionsBySerializedName in definitionIndexesBySerializedName)
+        {
+            var serializedName = definitionsBySerializedName.Key;
+            var collidingDefinitionIndexes = definitionsBySerializedName.Value;
+
+            if (collidingDefinitionIndexes.Count < 2)
+                continue;
+
+            foreach (var definitionIndex in collidingDefinitionIndexes)
+            {
+                var definition = definitions[definitionIndex];
+                var collidingValueNames = collidingDefinitionIndexes
+                    .Where(index => index != definitionIndex)
+                    .Select(index => definitions[index].NormalizedName);
+                var reports = definition.DiagnosticReports?.ToList() ?? [];
+                reports.Add(EnumClassError.CollidingSerializedNames(
+                    definition.Location,
+                    declarationName,
+                    definition.NormalizedName,
+                    serializedName,
+                    string.Join(", ", collidingValueNames)));
+                definitions[definitionIndex] = definition with { DiagnosticReports = reports };
+            }
+        }
     }
 
     private static Definition[] ConstructUnresolvedDefinitions(CollectedValueData[] data)
